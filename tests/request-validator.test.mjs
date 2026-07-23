@@ -33,20 +33,24 @@ test('rejects unknown persona and oversized content', () => {
     persona: 'unknown',
   }).code, 'invalid_persona');
 
-  assert.equal(validateChatRequest({
+  const oversizedContent = validateChatRequest({
     messages: [{ role: 'user', content: 'x'.repeat(LIMITS.maxContent + 1) }],
     persona: 'queshe',
-  }).code, 'message_too_long');
+  });
+  assert.equal(oversizedContent.code, 'message_too_long');
+  assert.equal(oversizedContent.status, 413);
 });
 
 test('rejects oversized conversations and invalid review flags', () => {
-  assert.equal(validateChatRequest({
+  const tooManyMessages = validateChatRequest({
     messages: Array.from({ length: LIMITS.maxMessages + 1 }, () => ({
       role: 'user',
       content: 'hi',
     })),
     persona: 'queshe',
-  }).code, 'too_many_messages');
+  });
+  assert.equal(tooManyMessages.code, 'too_many_messages');
+  assert.equal(tooManyMessages.status, 413);
 
   assert.equal(validateChatRequest({
     messages: [{ role: 'user', content: 'hi' }],

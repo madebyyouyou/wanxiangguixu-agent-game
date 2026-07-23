@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -18,6 +19,7 @@ const requiredPlanning = [
   'planning/minigames/Tea_Pouring_Demo.html',
   'planning/minigames/Tea_Pouring_Demo_Design.xlsx',
   'showcase/trailer/万象归墟_宣传片.mp4',
+  'showcase/trailer/万象归墟_宣传片封面.png',
 ];
 const expectedAgentFiles = [
   'Agent_System_1_QueShe.md',
@@ -43,7 +45,20 @@ test('curated planning set and final trailer exist', () => {
 test('showcase contains no draft or edit project', () => {
   const names = readdirSync(join(root, 'showcase/trailer'));
 
-  assert.deepEqual(names.sort(), ['万象归墟_宣传片.mp4']);
+  assert.deepEqual(names.sort(), [
+    '万象归墟_宣传片.mp4',
+    '万象归墟_宣传片封面.png',
+  ]);
+});
+
+test('public boundary accepts the final trailer and its cover', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['scripts/check-public-boundary.mjs'],
+    { cwd: root, encoding: 'utf8' },
+  );
+
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
 test('Agent planning directory contains only the explicit public allowlist', () => {

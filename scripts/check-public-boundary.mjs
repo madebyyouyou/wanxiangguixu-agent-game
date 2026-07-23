@@ -27,6 +27,10 @@ const FORBIDDEN_SUFFIXES = [
   '.csproj',
   '.sln',
 ];
+const SHOWCASE_TRAILER_FILES = [
+  '万象归墟_宣传片.mp4',
+  '万象归墟_宣传片封面.png',
+];
 const TEXT_EXTENSIONS = new Set([
   '.cjs',
   '.css',
@@ -86,9 +90,14 @@ export function checkBoundary(root = process.cwd()) {
   const trailers = existsSync(trailerDir)
     ? readdirSync(trailerDir, { withFileTypes: true })
       .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .sort()
     : [];
-  if (trailers.length !== 1) {
-    issues.push({ file: 'showcase/trailer', code: 'trailer_count' });
+  if (
+    trailers.length !== SHOWCASE_TRAILER_FILES.length
+    || trailers.some((file, index) => file !== SHOWCASE_TRAILER_FILES[index])
+  ) {
+    issues.push({ file: 'showcase/trailer', code: 'trailer_allowlist' });
   }
   return issues;
 }
