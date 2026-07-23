@@ -17,7 +17,7 @@ const requiredPlanning = [
   'planning/minigames/T16_Monster_Chase_Gameplay_Design.xlsx',
   'planning/minigames/Tea_Pouring_Demo.html',
   'planning/minigames/Tea_Pouring_Demo_Design.xlsx',
-  'showcase/trailer/万象归墟_H5演示.mp4',
+  'showcase/trailer/万象归墟_宣传片.mp4',
 ];
 const expectedAgentFiles = [
   'Agent_System_1_QueShe.md',
@@ -43,7 +43,7 @@ test('curated planning set and final trailer exist', () => {
 test('showcase contains no draft or edit project', () => {
   const names = readdirSync(join(root, 'showcase/trailer'));
 
-  assert.deepEqual(names.sort(), ['万象归墟_H5演示.mp4']);
+  assert.deepEqual(names.sort(), ['万象归墟_宣传片.mp4']);
 });
 
 test('Agent planning directory contains only the explicit public allowlist', () => {

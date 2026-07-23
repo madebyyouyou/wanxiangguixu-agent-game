@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/code-MIT-blue)
 ![Public demo](https://img.shields.io/badge/public_demo-offline-orange)
 
-[本地离线试玩](web/index.html) · [最终演示视频](showcase/trailer/万象归墟_H5演示.mp4) · [架构](docs/architecture.md) · [Agent 设计](docs/agent-design.md) · [策划作品](planning/README.md)
+[本地离线试玩](web/index.html) · [宣传片](showcase/trailer/万象归墟_宣传片.mp4) · [架构](docs/architecture.md) · [Agent 设计](docs/agent-design.md) · [策划作品](planning/README.md)
 
 ## 已实现的 Agent 工程能力
 
@@ -76,7 +76,7 @@ server/agent/        请求校验、Prompt 组合、模型适配与转发服务
 server/prompts/      自行部署路径使用的运行时 Prompt
 netlify/functions/   薄适配层
 planning/            原始格式的个人策划作品
-showcase/trailer/    唯一保留的最终演示成片
+showcase/trailer/    唯一保留的最终宣传片
 scripts/             安全、资源与公开边界检查
 tests/               离线回归与工程门禁
 docs/                架构、Agent、安全和评测说明
