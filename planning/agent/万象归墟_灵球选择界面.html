@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>万象归墟 · 随行系统选择</title>
+<style>
+  :root{
+    /* 主神空间 · 浅水阈限：低饱和冷色 */
+    --water-far:#c2d2d6;       /* 远处水天交界 */
+    --water-near:#9fb4bb;      /* 近处水面 */
+    --sky:#d9e4e6;             /* 天 */
+    --mist:#eef3f3;
+    --ink:#2b3b41;             /* 主文字 */
+    --ink-soft:#5c6e74;
+    --sys:#7fd4d4;             /* 无机质系统提示色 */
+    --line:#aebec3;
+    /* 三球人格色 */
+    --queshe:#e8a23c;          /* 雀舌 · 暖琥珀 */
+    --queshe-glow:#ffd27a;
+    --wuyou:#5b3f7a;           /* 乌有 · 紫黑 */
+    --wuyou-glow:#9a6fd0;
+    --shuheng:#6f9fc4;         /* 枢衡 · 银蓝 */
+    --shuheng-glow:#bfe2f5;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:"Songti SC","STSong","SimSun",serif;
+    color:var(--ink);
+    overflow:hidden;
+    background:
+      radial-gradient(120% 80% at 50% -10%, var(--mist) 0%, var(--sky) 35%, var(--water-far) 55%, var(--water-near) 100%);
+    user-select:none;
+  }
+  /* ===== 场景容器：上半天 / 下半水 ===== */
+  .stage{position:fixed; inset:0;}
+  /* 水天分界线（地平线，模糊柔和） */
+  .horizon{
+    position:absolute; left:0; right:0; top:58%; height:1px;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.7) 30%, rgba(255,255,255,.7) 70%, transparent);
+    box-shadow:0 0 24px 6px rgba(255,255,255,.35);
+  }
+  /* 水面：轻微反光带 */
+  .water{
+    position:absolute; left:0; right:0; top:58%; bottom:0;
+    background:linear-gradient(180deg, rgba(255,255,255,.25), transparent 30%);
+    overflow:hidden;
+  }
+  .water::after{ /* 水面横向微光波纹 */
+    content:""; position:absolute; inset:0;
+    background:repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0 2px, transparent 2px 9px);
+    animation:ripple 9s linear infinite; opacity:.5;
+  }
+  @keyframes ripple{from{transform:translateY(0);}to{transform:translateY(9px);}}
+
+  /* ===== 飘动雾气 ===== */
+  .mist{position:absolute; inset:0; pointer-events:none; mix-blend-mode:screen;}
+  .mist span{
+    position:absolute; border-radius:50%;
+    background:radial-gradient(circle, rgba(255,255,255,.55), transparent 70%);
+    filter:blur(28px); opacity:.6;
+  }
+  .mist span:nth-child(1){width:520px;height:300px; left:-8%; top:30%; animation:drift1 26s ease-in-out infinite;}
+  .mist span:nth-child(2){width:680px;height:340px; right:-12%; top:18%; animation:drift2 32s ease-in-out infinite;}
+  .mist span:nth-child(3){width:460px;height:240px; left:35%; top:50%; animation:drift1 22s ease-in-out infinite reverse;}
+  @keyframes drift1{0%,100%{transform:translateX(0);}50%{transform:translateX(80px);}}
+  @keyframes drift2{0%,100%{transform:translateX(0);}50%{transform:translateX(-100px);}}
+
+  /* ===== 顶部系统提示（无机质，逐行） ===== */
+  .sysbar{
+    position:absolute; left:50%; top:6.5%; transform:translateX(-50%);
+    width:min(760px,82vw); text-align:center; z-index:30;
+  }
+  .sysline{
+    font-family:"Courier New",ui-monospace,monospace;
+    color:var(--sys); font-size:clamp(15px,1.9vw,21px); letter-spacing:.18em;
+    text-shadow:0 0 14px rgba(127,212,212,.6);
+    min-height:1.6em; line-height:1.6;
+    opacity:0; transition:opacity .6s ease;
+  }
+  .sysline.show{opacity:1;}
+  .sys-hint{
+    margin-top:14px; font-family:"Courier New",monospace; font-size:12px;
+    letter-spacing:.3em; color:var(--ink-soft); opacity:.55;
+    animation:blink 1.8s ease-in-out infinite;
+  }
+  @keyframes blink{0%,100%{opacity:.2;}50%{opacity:.7;}}
+
+  /* ===== 灵球区 ===== */
+  .orbs{
+    position:absolute; left:0; right:0; top:30%;
+    display:flex; justify-content:center; gap:clamp(40px,9vw,130px);
+    z-index:20;
+  }
+  .orb-wrap{position:relative; display:flex; flex-direction:column; align-items:center; cursor:pointer;}
+  .orb{
+    --c:#888; --g:#ccc;
+    width:clamp(110px,12vw,168px); aspect-ratio:1; border-radius:50%;
+    background:
+      radial-gradient(circle at 34% 30%, rgba(255,255,255,.9), transparent 38%),
+      radial-gradient(circle at 50% 50%, var(--g), var(--c) 62%, #1c1c24 110%);
+    box-shadow:0 0 38px 6px var(--g), inset -8px -10px 26px rgba(0,0,0,.4), inset 8px 8px 20px rgba(255,255,255,.35);
+    position:relative; z-index:2;
+    animation:float 5.5s ease-in-out infinite;
+    transition:transform .4s cubic-bezier(.2,.8,.2,1), box-shadow .4s;
+  }
+  .orb-wrap:nth-child(1) .orb{animation-delay:-1s;}
+  .orb-wrap:nth-child(2) .orb{animation-delay:-2.6s;}
+  .orb-wrap:nth-child(3) .orb{animation-delay:-3.9s;}
+  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-16px);}}
+  .orb-wrap:hover .orb, .orb-wrap.active .orb{
+    transform:translateY(-22px) scale(1.06);
+    box-shadow:0 0 64px 14px var(--g), inset -8px -10px 26px rgba(0,0,0,.4), inset 8px 8px 20px rgba(255,255,255,.45);
+  }
+  /* 球内微光粒子 */
+  .orb::after{
+    content:""; position:absolute; inset:14%; border-radius:50%;
+    background:radial-gradient(circle at 60% 65%, var(--g), transparent 55%);
+    opacity:.5; animation:pulse 3.4s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:.35; transform:scale(.92);}50%{opacity:.7; transform:scale(1.04);}}
+
+  /* 水面倒影 */
+  .reflection{
+    width:clamp(110px,12vw,168px); aspect-ratio:1; border-radius:50%;
+    margin-top:42px;
+    background:radial-gradient(circle at 50% 50%, var(--g,#ccc), var(--c,#888) 70%, transparent 100%);
+    transform:scaleY(-.55); filter:blur(7px); opacity:.32;
+    animation:refwobble 6s ease-in-out infinite;
+  }
+  @keyframes refwobble{0%,100%{transform:scaleY(-.55) skewX(0);}50%{transform:scaleY(-.5) skewX(3deg);}}
+
+  .orb-name{
+    position:absolute; top:calc(100% - 30px);
+    font-size:clamp(15px,1.6vw,19px); letter-spacing:.4em; color:var(--ink);
+    text-shadow:0 1px 8px rgba(255,255,255,.8);
+    opacity:.85; transition:opacity .3s;
+  }
+  .orb-wrap:hover .orb-name,.orb-wrap.active .orb-name{opacity:1;}
+
+  /* 颜色绑定 */
+  .orb-queshe .orb,.orb-queshe .reflection{--c:var(--queshe);--g:var(--queshe-glow);}
+  .orb-wuyou  .orb,.orb-wuyou  .reflection{--c:var(--wuyou); --g:var(--wuyou-glow);}
+  .orb-shuheng .orb,.orb-shuheng .reflection{--c:var(--shuheng);--g:var(--shuheng-glow);}
+
+  /* ===== 信息框（半透明 · 柔边毛玻璃，叠盖球体下半） ===== */
+  .infobox{
+    position:absolute; z-index:40; width:min(330px,86vw);
+    background:linear-gradient(180deg, rgba(250,252,253,.62), rgba(235,243,245,.5));
+    backdrop-filter:blur(14px) saturate(1.1);
+    -webkit-backdrop-filter:blur(14px) saturate(1.1);
+    border:none;
+    border-radius:18px;
+    /* 柔和外光晕代替硬边框 + 顶部一抹人格色提示 */
+    box-shadow:
+      0 24px 60px -18px rgba(40,60,70,.45),
+      0 0 0 1px rgba(255,255,255,.35) inset,
+      0 18px 40px -28px var(--accent,#888);
+    padding:42px 24px 20px;          /* 顶部留白多些，给被球体盖住的部分 */
+    opacity:0; transform:translateY(10px) scale(.97); pointer-events:none;
+    transition:opacity .3s ease, transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  /* 顶缘一道柔和的人格色渐隐，替代生硬的 border-top */
+  .infobox::before{
+    content:""; position:absolute; left:18px; right:18px; top:0; height:2px;
+    background:linear-gradient(90deg, transparent, var(--accent,#888), transparent);
+    opacity:.55; border-radius:2px;
+  }
+  .infobox.show{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
+  .infobox.locked{
+    background:linear-gradient(180deg, rgba(250,252,253,.74), rgba(235,243,245,.64));
+    box-shadow:
+      0 24px 60px -18px rgba(40,60,70,.5),
+      0 0 0 1px rgba(255,255,255,.45) inset,
+      0 0 0 1.5px var(--accent,#888);
+  }
+  .ib-code{font-size:13px; letter-spacing:.3em; color:var(--ink-soft);}
+  .ib-name{
+    font-size:30px; letter-spacing:.18em; margin:2px 0 12px;
+    color:var(--accent,#333); font-weight:700;
+    text-shadow:0 1px 0 rgba(255,255,255,.8);
+  }
+  .ib-tags{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;}
+  .ib-tags span{
+    font-size:12px; letter-spacing:.05em; padding:3px 10px; border-radius:2px;
+    background:rgba(0,0,0,.05); border:1px solid var(--line); color:var(--ink-soft);
+  }
+  .ib-style{
+    font-size:13.5px; line-height:1.85; color:var(--ink);
+    border-left:2px solid var(--accent,#888); padding-left:12px; margin-bottom:18px;
+    text-align:justify;
+  }
+  .ib-btns{display:flex; gap:10px;}
+  .ib-btns button{
+    flex:1; font-family:inherit; font-size:15px; letter-spacing:.25em; padding:9px 0;
+    border:1px solid var(--accent,#888); cursor:pointer; transition:.2s;
+  }
+  .btn-bind{background:var(--accent,#888); color:#fff;}
+  .btn-bind:hover{filter:brightness(1.12); box-shadow:0 4px 16px -4px var(--accent,#888);}
+  .btn-try{background:transparent; color:var(--accent,#888);}
+  .btn-try:hover{background:rgba(0,0,0,.04);}
+
+  /* 试聊 · 右侧滑出侧边栏 */
+  .chatpop{                       /* 半透明遮罩，点击关闭 */
+    position:fixed; inset:0; z-index:60;
+    background:rgba(30,44,50,0); backdrop-filter:blur(0px);
+    pointer-events:none; transition:background .4s ease, backdrop-filter .4s ease;
+  }
+  .chatpop.show{
+    pointer-events:auto;
+    background:rgba(30,44,50,.3); backdrop-filter:blur(3px);
+  }
+  .chatcard{                      /* 侧边栏本体：毛玻璃 + 冷雾基调 */
+    position:absolute; top:0; right:0; height:100%;
+    width:min(390px,92vw);
+    background:
+      radial-gradient(120% 50% at 80% 0%, rgba(255,255,255,.5), transparent 60%),
+      linear-gradient(180deg, rgba(244,249,250,.82), rgba(226,237,240,.82));
+    backdrop-filter:blur(20px) saturate(1.15);
+    -webkit-backdrop-filter:blur(20px) saturate(1.15);
+    box-shadow:-24px 0 70px -20px rgba(30,44,50,.5), -1px 0 0 rgba(255,255,255,.4) inset;
+    display:flex; flex-direction:column; overflow:hidden;
+    transform:translateX(100%); transition:transform .42s cubic-bezier(.2,.85,.25,1);
+  }
+  .chatpop.show .chatcard{transform:translateX(0);}
+  /* 顶部一道极细的人格色光带，取代生硬的左边框 */
+  .chatcard::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:linear-gradient(180deg, var(--accent,#888), transparent 70%);
+    opacity:.7;
+  }
+
+  .chat-head{
+    padding:22px 24px 18px; position:relative;
+    display:flex; align-items:center; gap:14px;
+    border-bottom:1px solid rgba(174,190,195,.4);
+  }
+  .chat-avatar{               /* 头部灵球头像 */
+    width:44px; height:44px; border-radius:50%; flex:none;
+    background:
+      radial-gradient(circle at 34% 30%, rgba(255,255,255,.95), transparent 42%),
+      radial-gradient(circle at 50% 55%, var(--glow,#ccc), var(--accent,#888) 70%, #1c1c24 120%);
+    box-shadow:0 0 18px 2px var(--glow,#ccc), inset -3px -4px 10px rgba(0,0,0,.35);
+    animation:headFloat 4s ease-in-out infinite;
+  }
+  @keyframes headFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
+  .chat-head .head-txt{flex:1; min-width:0;}
+  .chat-head h3{font-size:18px; letter-spacing:.16em; color:var(--accent,#333); margin-bottom:3px;}
+  .chat-head .sub{font-size:12px; color:var(--ink-soft); letter-spacing:.05em;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .chat-head .x{
+    position:absolute; top:16px; right:18px; width:26px; height:26px; border-radius:50%;
+    display:grid; place-items:center; font-size:15px; color:var(--ink-soft);
+    cursor:pointer; transition:.25s;
+  }
+  .chat-head .x:hover{color:var(--ink); background:rgba(0,0,0,.05); transform:rotate(90deg);}
+
+  .chat-body{           /* 消息流 */
+    flex:1; overflow-y:auto; padding:20px 18px 10px;
+    display:flex; flex-direction:column; gap:14px;
+    scrollbar-width:thin; scrollbar-color:rgba(120,140,148,.4) transparent;
+  }
+  .chat-body::-webkit-scrollbar{width:6px;}
+  .chat-body::-webkit-scrollbar-thumb{background:rgba(120,140,148,.35); border-radius:3px;}
+
+  /* 一行 = 头像 + 气泡 */
+  .row-msg{display:flex; align-items:flex-end; gap:9px; max-width:88%;
+    animation:msgIn .32s cubic-bezier(.2,.85,.25,1);}
+  .row-msg.me{align-self:flex-end; flex-direction:row-reverse;}
+  .row-msg.bot{align-self:flex-start;}
+  @keyframes msgIn{from{opacity:0; transform:translateY(8px);}to{opacity:1; transform:translateY(0);}}
+  .mini-orb{               /* 气泡旁小灵球 */
+    width:26px; height:26px; border-radius:50%; flex:none; margin-bottom:2px;
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255,255,255,.9), transparent 45%),
+      radial-gradient(circle at 50% 55%, var(--glow,#ccc), var(--accent,#888) 72%, #1c1c24 120%);
+    box-shadow:0 0 10px 1px var(--glow,#ccc);
+  }
+  .row-msg.me .mini-orb{display:none;}
+
+  .msg{font-size:14px; line-height:1.75; padding:11px 15px; word-break:break-word;
+    position:relative;}
+  .msg.bot{                /* 灵球：柔白毛玻璃，左下小角 */
+    background:rgba(255,255,255,.78); color:var(--ink);
+    border-radius:16px 16px 16px 4px;
+    box-shadow:0 4px 16px -8px rgba(40,60,70,.4), 0 0 0 1px rgba(255,255,255,.5) inset;
+  }
+  .msg.me{                 /* 玩家：人格色渐变，右下小角 */
+    background:linear-gradient(135deg, var(--accent,#888), color-mix(in srgb, var(--accent,#888) 75%, #000 0%));
+    color:#fff; border-radius:16px 16px 4px 16px;
+    box-shadow:0 6px 18px -8px var(--accent,#888);
+  }
+
+  /* 正在输入：三点呼吸 */
+  .typing{display:flex; gap:5px; padding:14px 16px; align-items:center;}
+  .typing span{width:7px; height:7px; border-radius:50%; background:var(--accent,#888); opacity:.4;
+    animation:typedot 1.2s ease-in-out infinite;}
+  .typing span:nth-child(2){animation-delay:.18s;}
+  .typing span:nth-child(3){animation-delay:.36s;}
+  @keyframes typedot{0%,60%,100%{opacity:.3; transform:translateY(0);}30%{opacity:.9; transform:translateY(-4px);}}
+
+  .chat-foot{
+    padding:14px 16px 18px; display:flex; gap:10px; align-items:center;
+    border-top:1px solid rgba(174,190,195,.4);
+    background:linear-gradient(180deg, transparent, rgba(255,255,255,.35));
+  }
+  .chat-foot input{
+    flex:1; font-family:inherit; font-size:14px; padding:11px 16px;
+    border:1px solid rgba(174,190,195,.6); border-radius:22px;
+    background:rgba(255,255,255,.7); color:var(--ink); outline:none;
+    transition:.25s;
+  }
+  .chat-foot input:focus{
+    border-color:var(--accent,#888); background:#fff;
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--accent,#888) 18%, transparent);
+  }
+  .chat-foot .send{
+    width:42px; height:42px; flex:none; border:none; border-radius:50%;
+    background:var(--accent,#888); color:#fff; cursor:pointer; font-size:16px;
+    display:grid; place-items:center; transition:.25s;
+    box-shadow:0 6px 16px -6px var(--accent,#888);
+  }
+  .chat-foot .send:hover{filter:brightness(1.12); transform:scale(1.06);}
+  .chat-foot .send:active{transform:scale(.94);}
+
+  .demo-note{
+    position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+    font-family:"Courier New",monospace; font-size:11px; letter-spacing:.15em;
+    color:var(--ink-soft); opacity:.5;
+  }
+  /* 绑定确认 toast */
+  .toast{
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(.9);
+    background:rgba(30,44,50,.92); color:#fff; padding:18px 30px; z-index:80;
+    letter-spacing:.2em; font-size:16px; opacity:0; pointer-events:none;
+    transition:.35s; border:1px solid rgba(255,255,255,.2);
+  }
+  .toast.show{opacity:1; transform:translate(-50%,-50%) scale(1);}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="horizon"></div>
+    <div class="water"></div>
+    <div class="mist"><span></span><span></span><span></span></div>
+
+    <!-- 顶部系统提示（逐行） -->
+    <div class="sysbar">
+      <div class="sysline" id="sysline"></div>
+      <div class="sys-hint" id="sysHint">▼ 点击继续</div>
+    </div>
+
+    <!-- 三颗灵球 -->
+    <div class="orbs" id="orbs">
+      <div class="orb-wrap orb-queshe" data-key="queshe">
+        <div class="orb"></div>
+        <div class="orb-name">雀舌</div>
+        <div class="reflection"></div>
+      </div>
+      <div class="orb-wrap orb-wuyou" data-key="wuyou">
+        <div class="orb"></div>
+        <div class="orb-name">乌有</div>
+        <div class="reflection"></div>
+      </div>
+      <div class="orb-wrap orb-shuheng" data-key="shuheng">
+        <div class="orb"></div>
+        <div class="orb-name">枢衡</div>
+        <div class="reflection"></div>
+      </div>
+    </div>
+
+    <!-- 信息框（动态定位） -->
+    <div class="infobox" id="infobox">
+    <div class="ib-code" id="ibCode">代号</div>
+      <div class="ib-name" id="ibName">名称</div>
+      <div class="ib-tags" id="ibTags"></div>
+      <div class="ib-style" id="ibStyle"></div>
+      <div class="ib-btns">
+        <button class="btn-bind" id="btnBind">绑 定</button>
+        <button class="btn-try" id="btnTry">试 聊</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 试聊 · 右侧侧边栏 -->
+  <div class="chatpop" id="chatpop">
+    <aside class="chatcard" id="chatcard">
+      <div class="chat-head">
+        <div class="chat-avatar" id="chatAvatar"></div>
+        <div class="head-txt">
+          <h3 id="chatName">试聊</h3>
+          <div class="sub" id="chatSub"></div>
+        </div>
+        <span class="x" id="chatClose">✕</span>
+      </div>
+      <div class="chat-body" id="chatBody"></div>
+      <div class="chat-foot">
+        <input id="chatInput" placeholder="随便说点什么……" />
+        <button class="send" id="chatSend" aria-label="发送">➤</button>
+      </div>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="demo-note">DEMO · 试聊为脚本占位，正式版接入大语言模型</div>
+
+<script>
+/* ===== 数据：取自《前置框架》灵球表 ===== */
+const ORBS = {
+  queshe:{
+    code:"代号 · QUESHE", name:"雀舌", accent:"#d68a1e", glow:"#ffd27a",
+    tags:["古灵精怪","活泼话痨","气氛调节"],
+    style:"祂话多、鬼点子多，爱吐槽副本里的异常现象，也常抛出一堆稀奇古怪的思路。不保证每个想法都对，但能在你卡住时帮你打开思路，在高压恐怖里给你一点暖。",
+    samples:[
+      "老大！本球雀舌报到～这地方一看就邪门，咱搭伙活着出去呗！",
+      "哎我突然有个鬼点子——虽然八成不靠谱，但你听听看嘛！",
+      "怕啥怕，有我在呢！实在不行咱就……呃，再想想。"
+    ]
+  },
+  wuyou:{
+    code:"代号 · WUYOU", name:"乌有", accent:"#7a52ad", glow:"#9a6fd0",
+    tags:["嘴毒刻薄","直觉判断","强制打断"],
+    style:"对“即将踩雷”的危险操作有野兽般的本能预感，生存直觉准头不低，高危时刻能强行拦下你的手。但祂对逻辑分析没耐心，还刻薄——选祂，请做好被冷嘲热讽的准备。",
+    samples:[
+      "啧，又来一个看着就活不长的。绑我？想清楚了。",
+      "站住——那个方向别去，我汗毛都竖起来了，别问为什么。",
+      "逻辑推理？自己动脑子。我只负责在你作死前拦你一把。"
+    ]
+  },
+  shuheng:{
+    code:"代号 · SHUHENG", name:"枢衡", accent:"#4f86b3", glow:"#bfe2f5",
+    tags:["理性冷静","惜字如金","绝对可靠"],
+    style:"高可靠、低覆盖。理性冷淡，不提供情绪价值，也不说废话。只输出有把握的确认结论，没把握时宁可沉默——选祂，你得自己扛住关键时刻无人作答的恐惧。",
+    samples:[
+      "枢衡。随行系统已绑定待命。",
+      "信息不足，无法判断。等你拿到更多线索再问。",
+      "确认：该规则存在矛盾。其余推断需你自行完成。"
+    ]
+  }
+};
+
+/* ===== 顶部系统提示逐行 ===== */
+const SYS_LINES = [
+  "【任务者，欢迎进入主神空间。】",
+  "【你需要进入各副本完成特定任务，获取积分。】",
+  "【积分可用于兑换道具、解锁权限，以及申请返回现实。】",
+  "【在进入副本前，请选择随行系统。】",
+  "【系统将协助你记录、分析、推演，并代为兑换道具——但不会替你判断。】"
+];
+let sysIdx = -1;
+const $ = s=>document.querySelector(s);
+const syslineEl = $("#sysline"), sysHintEl = $("#sysHint");
+function nextSysLine(){
+  if(sysIdx >= SYS_LINES.length-1){
+    // 全部播完：提示语切换为"悬停选择"
+    syslineEl.classList.remove("show");
+    setTimeout(()=>{
+      syslineEl.textContent = "【请将意识投向其一……】";
+      syslineEl.classList.add("show");
+      sysHintEl.textContent = "悬停灵球查看 · 点击信息框锁定";
+    },300);
+    sysDone = true;
+    return;
+  }
+  sysIdx++;
+  syslineEl.classList.remove("show");
+  setTimeout(()=>{
+    syslineEl.textContent = SYS_LINES[sysIdx];
+    syslineEl.classList.add("show");
+    if(sysIdx === SYS_LINES.length-1) sysHintEl.textContent = "▼ 点击完成";
+  }, sysIdx===0?100:300);
+}
+let sysDone = false;
+
+/* ===== 信息框定位与显隐 ===== */
+const infobox = $("#infobox");
+let lockedKey = null;     // 当前锁定的球
+let hoverKey  = null;
+
+function fillBox(key){
+  const o = ORBS[key];
+  infobox.style.setProperty("--accent", o.accent);
+  $("#ibCode").textContent = o.code;
+  $("#ibName").textContent = o.name;
+  $("#ibName").style.color = o.accent;
+  const tg = $("#ibTags"); tg.innerHTML = "";
+  o.tags.forEach(t=>{ const s=document.createElement("span"); s.textContent=t; tg.appendChild(s); });
+  $("#ibStyle").textContent = o.style;
+}
+
+function positionBox(wrap){
+  // 锚定「球体」本身：让信息框上缘叠进球体下半部，半盖住球（呼应 PPT 排布）
+  const orb = wrap.querySelector(".orb");
+  const r = orb.getBoundingClientRect();
+  const bw = infobox.offsetWidth;
+  let left = r.left + r.width/2 - bw/2;     // 与球心水平居中
+  let top  = r.top + r.height * 0.62;       // 上缘落在球体约 62% 处，盖住球底一截
+  const pad = 12;
+  left = Math.max(pad, Math.min(left, window.innerWidth - bw - pad));
+  infobox.style.left = left + "px";
+  infobox.style.top  = top  + "px";
+}
+
+function showBox(key, wrap){
+  fillBox(key);
+  infobox.classList.remove("locked");
+  positionBox(wrap);
+  infobox.classList.add("show");
+}
+function hideBox(){
+  infobox.classList.remove("show","locked");
+  lockedKey = null;
+  document.querySelectorAll(".orb-wrap").forEach(w=>w.classList.remove("active"));
+}
+
+/* ===== 绑定灵球交互 ===== */
+document.querySelectorAll(".orb-wrap").forEach(wrap=>{
+  const key = wrap.dataset.key;
+  // 悬停：仅在未锁定时跟随
+  wrap.addEventListener("mouseenter", ()=>{
+    hoverKey = key;
+    if(lockedKey) return;          // 已锁定时不被悬停打断
+    showBox(key, wrap);
+  });
+  wrap.addEventListener("mouseleave", ()=>{
+    hoverKey = null;
+    if(lockedKey) return;
+    hideBox();
+  });
+  // 点击灵球：直接锁定该球的信息框
+  wrap.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    lockedKey = key;
+    document.querySelectorAll(".orb-wrap").forEach(w=>w.classList.toggle("active", w===wrap));
+    showBox(key, wrap);
+    infobox.classList.add("locked");
+  });
+});
+
+/* 点击信息框本体：锁定（固定住），并阻止冒泡到空白 */
+infobox.addEventListener("click", (e)=>{
+  e.stopPropagation();
+  if(hoverKey || lockedKey){
+    lockedKey = lockedKey || hoverKey;
+    const wrap = document.querySelector(`.orb-wrap[data-key="${lockedKey}"]`);
+    if(wrap) wrap.classList.add("active");
+    infobox.classList.add("locked");
+  }
+});
+
+/* 点击空白处：关闭锁定的信息框；同时推进系统提示 */
+document.addEventListener("click", ()=>{
+  if(lockedKey){ hideBox(); return; }   // 有锁定 → 先关框
+  if(!sysDone){ nextSysLine(); }        // 没锁定且提示没播完 → 推进文本
+});
+
+/* ===== 绑定 / 试聊 按钮 ===== */
+$("#btnBind").addEventListener("click",(e)=>{
+  e.stopPropagation();
+  const key = lockedKey || hoverKey; if(!key) return;
+  const o = ORBS[key];
+  showToast(`已绑定随行系统「${o.name}」`, o.accent);
+  // 真实游戏里：此处写入 state.persona = key，进入副本选择页
+});
+$("#btnTry").addEventListener("click",(e)=>{
+  e.stopPropagation();
+  const key = lockedKey || hoverKey; if(!key) return;
+  openChat(key);
+});
+
+/* ===== 试聊 · 侧边栏（脚本占位） ===== */
+const chatpop = $("#chatpop"), chatBody = $("#chatBody");
+let chatKey = null, sampleIdx = 0, chatBusy = false;
+
+function addMsg(text, who){
+  const row = document.createElement("div");
+  row.className = "row-msg " + (who==="me" ? "me" : "bot");
+  if(who !== "me"){
+    const orb = document.createElement("div");
+    orb.className = "mini-orb";
+    row.appendChild(orb);
+  }
+  const m = document.createElement("div");
+  m.className = "msg " + (who==="me" ? "me" : "bot");
+  m.textContent = text;
+  row.appendChild(m);
+  chatBody.appendChild(row);
+  chatBody.scrollTop = chatBody.scrollHeight;
+  return m;
+}
+
+/* 灵球开口前先显示"正在输入"，再换成打字浮现的文字 */
+function botReply(text){
+  chatBusy = true;
+  const row = document.createElement("div");
+  row.className = "row-msg bot";
+  row.innerHTML = `<div class="mini-orb"></div><div class="msg bot typing"><span></span><span></span><span></span></div>`;
+  chatBody.appendChild(row);
+  chatBody.scrollTop = chatBody.scrollHeight;
+  setTimeout(()=>{
+    const bubble = row.querySelector(".msg");
+    bubble.classList.remove("typing");
+    bubble.innerHTML = "";
+    // 逐字浮现
+    let i = 0;
+    (function type(){
+      if(i <= text.length){
+        bubble.textContent = text.slice(0, i++);
+        chatBody.scrollTop = chatBody.scrollHeight;
+        setTimeout(type, 28);
+      } else { chatBusy = false; }
+    })();
+  }, 650);
+}
+
+function openChat(key){
+  chatKey = key; sampleIdx = 0; chatBusy = false;
+  const o = ORBS[key];
+  $("#chatcard").style.setProperty("--accent", o.accent);
+  $("#chatcard").style.setProperty("--glow", o.glow);
+  $("#chatName").textContent = `试聊 · ${o.name}`;
+  $("#chatName").style.color = o.accent;
+  $("#chatSub").textContent = o.tags.join(" · ");
+  chatBody.innerHTML = "";
+  $("#chatInput").value = "";
+  chatpop.classList.add("show");
+  setTimeout(()=>botReply(o.samples[0]), 350);   // 开场白也走"正在输入→打字"
+  setTimeout(()=>$("#chatInput").focus(), 420);
+}
+function chatSend(){
+  if(chatBusy) return;                            // 灵球还在说就先等等
+  const v = $("#chatInput").value.trim();
+  if(!v) return;
+  addMsg(v, "me");
+  $("#chatInput").value = "";
+  const o = ORBS[chatKey];
+  sampleIdx = (sampleIdx+1) % o.samples.length;
+  botReply(o.samples[sampleIdx]);
+}
+$("#chatSend").addEventListener("click",(e)=>{ e.stopPropagation(); chatSend(); });
+$("#chatInput").addEventListener("keydown",(e)=>{ if(e.key==="Enter") chatSend(); });
+$("#chatClose").addEventListener("click",(e)=>{ e.stopPropagation(); chatpop.classList.remove("show"); });
+chatpop.addEventListener("click",(e)=>{ if(e.target===chatpop) chatpop.classList.remove("show"); });
+$("#chatcard").addEventListener("click",(e)=>e.stopPropagation());
+
+/* ===== toast ===== */
+const toastEl = $("#toast");
+let toastTimer=null;
+function showToast(msg, color){
+  toastEl.textContent = msg;
+  toastEl.style.borderColor = color || "rgba(255,255,255,.2)";
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toastEl.classList.remove("show"), 1800);
+}
+
+/* 窗口缩放时，若框开着则重新定位 */
+window.addEventListener("resize", ()=>{
+  const key = lockedKey || hoverKey;
+  if(key && infobox.classList.contains("show")){
+    const wrap = document.querySelector(`.orb-wrap[data-key="${key}"]`);
+    if(wrap) positionBox(wrap);
+  }
+});
+
+/* 启动：播第一行系统提示 */
+nextSysLine();
+</script>
+</body>
+</html>

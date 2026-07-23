@@ -1,0 +1,13 @@
+[build]
+  publish = "web"
+  functions = "netlify/functions"
+  command = ""
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["server/prompts/**"]
+
+[[redirects]]
+  from = "/api/chat"
+  to = "/.netlify/functions/chat"
+  status = 200

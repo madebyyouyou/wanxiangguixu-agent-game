@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>渡厄镇 — 倒茶玩法 demo v3 (无规则运动)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: '微软雅黑', sans-serif;
+    background: #1a1416;
+    color: #d4c5b9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    user-select: none;
+  }
+
+  h1 { color: #c8a060; margin-bottom: 8px; font-size: 22px; letter-spacing: 2px; }
+  .subtitle { color: #807060; margin-bottom: 16px; font-size: 13px; }
+
+  /* ============ 游戏容器 ============ */
+  #gameContainer {
+    position: relative;
+    width: 700px;
+    height: 500px;
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(120, 80, 40, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 60%, rgba(80, 60, 40, 0.12) 0%, transparent 50%),
+      linear-gradient(135deg, #2a2018 0%, #1a1410 100%);
+    border: 3px solid #c8a060;
+    box-shadow: 0 0 30px rgba(200, 160, 96, 0.3), inset 0 0 50px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    cursor: none; /* 用自定义鼠标 */
+  }
+
+  /* 木纹质感叠加 */
+  #gameContainer::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, transparent 0, transparent 8px, rgba(180, 140, 80, 0.04) 8px, rgba(180, 140, 80, 0.04) 9px);
+    pointer-events: none;
+  }
+
+  /* ============ 白色目标圈 (茶杯口) ============ */
+  #targetCircle {
+    position: absolute;
+    border: 2px solid rgba(255, 240, 200, 0.9);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5;
+    box-shadow:
+      0 0 16px rgba(255, 240, 200, 0.5),
+      inset 0 0 20px rgba(255, 240, 200, 0.1);
+    background: radial-gradient(circle, rgba(255,240,200,0.05) 40%, transparent 70%);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  #targetCircle.both-in {
+    border-color: rgba(180, 255, 180, 0.95);
+    box-shadow:
+      0 0 24px rgba(180, 255, 180, 0.6),
+      inset 0 0 30px rgba(180, 255, 180, 0.15);
+  }
+  #targetCircle.success-flash {
+    animation: successFlash 0.6s ease-out;
+  }
+  @keyframes successFlash {
+    0% { transform: translate(-50%, -50%) scale(1); border-color: #80ff80; }
+    100% { transform: translate(-50%, -50%) scale(2.5); border-color: rgba(128,255,128,0); opacity: 0; }
+  }
+
+  /* 进度条 — 环绕白圈外侧 */
+  #progressRing {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  /* ============ 鼠标光标 (茶壶嘴) ============ */
+  #pourerCursor {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 20;
+    font-size: 28px;
+    text-align: center;
+    line-height: 32px;
+    color: #c8a060;
+    text-shadow: 0 0 8px rgba(200, 160, 96, 0.8);
+    transition: color 0.1s;
+  }
+  #pourerCursor.in-circle { color: #ffe080; text-shadow: 0 0 12px rgba(255, 224, 128, 1); }
+
+  /* ============ 键盘光标 (茶杯) ============ */
+  #cupCursor {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 15;
+    font-size: 30px;
+    text-align: center;
+    line-height: 36px;
+    color: #b08060;
+    text-shadow: 0 0 8px rgba(180, 128, 96, 0.8);
+    transition: color 0.1s;
+  }
+  #cupCursor.in-circle { color: #ffd070; text-shadow: 0 0 12px rgba(255, 208, 112, 1); }
+
+  /* ============ HUD ============ */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 30;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+    pointer-events: none;
+  }
+  #scoreDisplay {
+    font-size: 16px;
+    color: #d4c5b9;
+    letter-spacing: 2px;
+  }
+  #scoreDisplay .num { color: #ffd070; font-size: 24px; font-weight: bold; }
+  #roundDisplay { font-size: 14px; color: #c0a070; }
+  #stateHint {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px;
+    color: #a09080;
+    text-align: center;
+    z-index: 25;
+    background: rgba(0,0,0,0.4);
+    padding: 6px 16px;
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  #stateHint.ready { color: #80ff80; }
+
+  /* ============ 引导提示 ============ */
+  #introHint {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid #c8a060;
+    padding: 16px 28px;
+    text-align: left;
+    z-index: 40;
+    font-size: 13px;
+    line-height: 1.9;
+    letter-spacing: 1px;
+    max-width: 380px;
+  }
+  #introHint .title { color: #ffd070; font-size: 16px; margin-bottom: 10px; font-weight: bold; text-align: center; }
+  #introHint .key { color: #ffe080; font-family: monospace; }
+  #introHint .btn-start {
+    display: block;
+    margin: 14px auto 0;
+    padding: 6px 24px;
+    background: transparent;
+    border: 1px solid #c8a060;
+    color: #d4c5b9;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 2px;
+    pointer-events: auto;
+  }
+  #introHint .btn-start:hover { background: rgba(200, 160, 96, 0.3); color: #fff; }
+
+  /* ============ 评级点 ============ */
+  #ratingDots { display: inline-flex; gap: 4px; }
+  .rating-dot {
+    display: inline-block;
+    width: 14px;
+    text-align: center;
+    color: #606060;
+    font-size: 14px;
+  }
+  .rating-dot.perfect { color: #80ff80; text-shadow: 0 0 4px #80ff80; }
+  .rating-dot.normal  { color: #c0a060; }
+
+  /* 飘字: 完美/合格 */
+  .rating-text {
+    position: absolute;
+    pointer-events: none;
+    z-index: 25;
+    font-weight: bold;
+    transform: translate(-50%, -50%);
+    animation: ratingFloat 1.2s ease-out forwards;
+  }
+  @keyframes ratingFloat {
+    0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+    20% { transform: translate(-50%, -120%) scale(1.2); opacity: 1; }
+    100% { transform: translate(-50%, -200%) scale(1); opacity: 0; }
+  }
+
+  /* 总时间显示 */
+  #totalTimerDisplay {
+    font-size: 18px;
+    color: #d4c5b9;
+    letter-spacing: 1px;
+    font-family: monospace;
+  }
+  #totalTimerDisplay.urgent {
+    color: #ff6060;
+    animation: urgentPulse 0.5s ease-in-out infinite alternate;
+  }
+  @keyframes urgentPulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.15); }
+  }
+
+  /* ============ 胜利弹窗 ============ */
+  .modal {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  .modal.show { display: flex; }
+  .modal-content {
+    text-align: center;
+    padding: 30px 50px;
+    border: 2px solid #c8a060;
+    background: linear-gradient(135deg, #2a2018, #1a1410);
+    box-shadow: 0 0 30px rgba(200, 160, 96, 0.4);
+  }
+  .modal-title { font-size: 22px; color: #ffd070; margin-bottom: 16px; letter-spacing: 4px; }
+  .modal-text { font-size: 14px; color: #d4c5b9; line-height: 1.8; margin-bottom: 20px; }
+  .btn {
+    padding: 8px 28px;
+    background: transparent;
+    border: 1px solid #c8a060;
+    color: #d4c5b9;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+  }
+  .btn:hover { background: rgba(200, 160, 96, 0.3); color: #fff; }
+
+  /* ============ 调试面板 ============ */
+  #debugPanel {
+    margin-top: 20px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid #404040;
+    width: 700px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #a09080;
+  }
+  #debugPanel h3 { color: #c8a060; margin-bottom: 10px; font-size: 13px; letter-spacing: 2px; }
+  .debug-row { display: flex; gap: 20px; margin-bottom: 6px; align-items: center; }
+  .debug-row label { min-width: 200px; }
+  .debug-row input[type="range"] { flex: 1; }
+  .debug-row .value { min-width: 60px; text-align: right; color: #c8a060; }
+
+  .footer {
+    margin-top: 16px;
+    font-size: 11px;
+    color: #606060;
+    text-align: center;
+    max-width: 700px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<h1>渡厄镇 · 倒茶玩法</h1>
+<div class="subtitle">玩法原型 demo v3 · 白圈曲线游走+突变, 不可预判</div>
+
+<div id="gameContainer">
+  <div id="hud">
+    <div id="scoreDisplay">已完成 <span class="num" id="scoreNum">0</span> / <span id="totalRounds">3</span> 杯
+      <span id="ratingDots" style="margin-left:8px;"></span>
+    </div>
+    <div id="totalTimerDisplay">⏱ <span id="totalTimerNum">30</span>s</div>
+    <div id="roundDisplay">第 <span id="roundNum">1</span> 局</div>
+  </div>
+
+  <!-- SVG 进度环 -->
+  <svg id="progressRing" width="160" height="160" viewBox="0 0 160 160">
+    <circle cx="80" cy="80" r="72" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3"/>
+    <circle id="progressArc" cx="80" cy="80" r="72" fill="none" stroke="#ffd070" stroke-width="3"
+            stroke-dasharray="452.4" stroke-dashoffset="452.4"
+            transform="rotate(-90 80 80)" stroke-linecap="round"
+            style="transition: stroke-dashoffset 0.05s linear, stroke 0.15s;"/>
+  </svg>
+
+  <div id="targetCircle"></div>
+  <div id="pourerCursor">🫖</div>
+  <div id="cupCursor">🍵</div>
+
+  <div id="stateHint">将茶壶嘴与茶杯都对准白圈</div>
+
+  <div id="introHint">
+    <div class="title">倒茶</div>
+    <span class="key">鼠标</span> 控制 🫖 茶壶嘴<br>
+    <span class="key">W A S D</span> 控制 🍵 茶杯<br>
+    两者<span style="color:#ffd070;">同时</span>处于白圈内, 进度条会增长<br>
+    任一离开白圈, 进度立刻归零<br>
+    进度满后, <span class="key">点击鼠标左键</span> 完成<br>
+    ★ <span style="color:#80ff80;">立刻点击</span> = 完美; 慢了 = 合格<br>
+    ★ 总时间限制内倒完 N 杯过关<br>
+    <button class="btn-start" id="startBtn">开始</button>
+  </div>
+
+  <div id="winModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">茶, 倒好了</div>
+      <div class="modal-text">
+        虫茶平稳落桌<br>
+        <span id="perfectInfo" style="font-size:13px;"></span><br>
+        <span style="font-size:11px;color:#808080;">[ 进入下一段剧情 ]</span>
+      </div>
+      <button class="btn" onclick="restartGame()">再玩一次</button>
+    </div>
+  </div>
+
+  <div id="loseModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">手抖了</div>
+      <div class="modal-text">
+        茶水没能送到杯中<br>
+        <span style="font-size:11px;color:#808080;">[ 时间用尽, 需要重来 ]</span>
+      </div>
+      <button class="btn" onclick="restartGame()">重新开始</button>
+    </div>
+  </div>
+</div>
+
+<div id="debugPanel">
+  <h3>★ 调试面板 (策划用 — 拖动调整数值, 立刻生效)</h3>
+
+  <div class="debug-row">
+    <label>第1局白圈半径 (px)</label>
+    <input type="range" id="cfg-targetRadius" min="40" max="120" value="70" step="5">
+    <span class="value" id="val-targetRadius">70</span>
+  </div>
+
+  <div class="debug-row">
+    <label>★每局白圈缩小 (px)</label>
+    <input type="range" id="cfg-targetRadiusShrink" min="0" max="25" value="12" step="1">
+    <span class="value" id="val-targetRadiusShrink">12</span>
+  </div>
+
+  <div class="debug-row">
+    <label>白圈移动速度 (px/s)</label>
+    <input type="range" id="cfg-targetSpeed" min="50" max="300" value="140" step="10">
+    <span class="value" id="val-targetSpeed">140</span>
+  </div>
+
+  <div class="debug-row">
+    <label>★方向漂移强度 (曲线弯曲度)</label>
+    <input type="range" id="cfg-targetDriftStrength" min="0" max="3" value="1.2" step="0.1">
+    <span class="value" id="val-targetDriftStrength">1.2</span>
+  </div>
+
+  <div class="debug-row">
+    <label>★突变间隔上限 (秒)</label>
+    <input type="range" id="cfg-targetSuddenChangeMax" min="0.8" max="4" value="2.0" step="0.1">
+    <span class="value" id="val-targetSuddenChangeMax">2.0</span>
+  </div>
+
+  <div class="debug-row">
+    <label>茶杯移动速度 (px/s)</label>
+    <input type="range" id="cfg-cupSpeed" min="150" max="500" value="320" step="10">
+    <span class="value" id="val-cupSpeed">320</span>
+  </div>
+
+  <div class="debug-row">
+    <label>进度条充满所需时长 (秒)</label>
+    <input type="range" id="cfg-fillDuration" min="1" max="5" value="2" step="0.1">
+    <span class="value" id="val-fillDuration">2.0</span>
+  </div>
+
+  <div class="debug-row">
+    <label>★完美评级窗口 (秒)</label>
+    <input type="range" id="cfg-perfectWindow" min="0.2" max="1.5" value="0.4" step="0.05">
+    <span class="value" id="val-perfectWindow">0.40</span>
+  </div>
+
+  <div class="debug-row">
+    <label>★达成奖励所需完美数</label>
+    <input type="range" id="cfg-perfectsNeeded" min="1" max="5" value="2" step="1">
+    <span class="value" id="val-perfectsNeeded">2</span>
+  </div>
+
+  <div class="debug-row">
+    <label>总局数</label>
+    <input type="range" id="cfg-totalRounds" min="1" max="5" value="3" step="1">
+    <span class="value" id="val-totalRounds">3</span>
+  </div>
+
+  <div class="debug-row">
+    <label>★通关总时间限制 (秒)</label>
+    <input type="range" id="cfg-totalTimeLimit" min="15" max="60" value="30" step="5">
+    <span class="value" id="val-totalTimeLimit">30</span>
+  </div>
+
+  <div class="debug-row">
+    <label>★斜向速度归一化</label>
+    <input type="checkbox" id="cfg-normalizeDiagonal" checked style="width:18px;height:18px;flex:0;">
+    <span class="value" style="flex:1;text-align:left;font-size:11px;color:#807060;">
+      勾选=斜走与直走同速(推荐)
+    </span>
+  </div>
+</div>
+
+<div class="footer">
+  ★ 占位说明:<br>
+  🫖 = 茶壶嘴 (鼠标光标) · 🍵 = 茶杯 (键盘光标) · 白色圆圈 = 目标位置<br>
+  正式项目接入 Unity 时, 用 SpriteRenderer + 鼠标坐标输入替换上述占位即可
+</div>
+
+<script>
+// ============================================================
+// 倒茶玩法 — Unity 风格 JS 实现
+// 参考: 燕云十六声 投壶玩法
+// ============================================================
+
+const CONFIG = {
+  // 容器
+  containerWidth: 700,
+  containerHeight: 500,
+  hudHeight: 50,
+
+  // 白圈 (茶杯口目标)
+  targetRadius: 70,         // ★第1局白圈半径(后续局数会缩小)
+  targetRadiusShrink: 12,   // ★每局白圈半径缩小多少 px (例: 70→58→46)
+  targetMinRadius: 30,      // 白圈最小半径(避免缩到不可玩)
+  targetSpeed: 140,         // 白圈游动速度 px/s (碰边反弹)
+
+  // ★无规则运动参数 (方案B曲线游走 + 方案A突变)
+  targetDriftStrength: 1.2, // 每秒方向自然漂移强度 (弧度/秒, 大概值)
+                            // — 越大曲线越蜿蜒, 越小越接近直线
+  targetSuddenChangeMin: 1.0, // 突变间隔最小秒数
+  targetSuddenChangeMax: 2.0, // 突变间隔最大秒数
+                              // — 在此区间随机, 到时间触发一次大变向
+  targetSuddenChangeAngle: 1.5, // 突变时方向旋转幅度上限 (弧度, π/2≈1.57 = 90度)
+                                // — 实际旋转量为 ±angle 内的随机值, 至少π/3(60度)
+  targetSuddenChangeMinAngle: 1.0, // 突变最小旋转量 (避免变化太小不明显)
+
+
+  // 茶杯 (键盘光标)
+  cupSpeed: 320,
+  cupRadius: 14,
+
+  // 进度系统
+  fillDuration: 2.0,        // 进度条从0填满需要多少秒
+  fillProgressOnExit: 0,    // 离开白圈后进度归零
+
+  // ★完美评级
+  perfectWindow: 0.4,       // 进度满后多少秒内点击 = 完美 (400ms)
+  perfectsNeeded: 2,        // 总局数中达到多少次完美才奖励积分
+
+  // 局数
+  totalRounds: 3,
+  totalTimeLimit: 30,       // ★通关总时间限制(秒) — 超时游戏失败
+
+  // 输入
+  normalizeDiagonal: true,
+};
+
+const GameState = {
+  // 鼠标位置
+  mouseX: 350,
+  mouseY: 250,
+
+  // 茶杯位置
+  cupX: 200,
+  cupY: 300,
+
+  // 白圈位置 + 速度 + 当前半径
+  targetX: 350,
+  targetY: 250,
+  targetVx: 1,
+  targetVy: 0.5,
+  currentTargetRadius: 70,  // ★当前局的白圈半径(会逐局缩小)
+  nextSuddenChange: 1.5,    // ★距离下次突变的剩余秒数
+
+  // 进度
+  progress: 0,
+  ready: false,
+  readyTimer: 0,            // ★进度满后已经过去多少秒(用于完美判定)
+
+  // 输入
+  keysDown: { W: false, A: false, S: false, D: false },
+
+  // 流程
+  isPlaying: false,
+  currentRound: 0,
+  isGameOver: false,
+
+  // ★时间限制
+  totalElapsed: 0,          // 累计游玩时间
+
+  // ★评级记录
+  perfectCount: 0,          // 本次通关完美杯数
+  roundResults: [],         // 每局的结果: 'perfect' 或 'normal'
+};
+
+// DOM
+const $container = document.getElementById('gameContainer');
+const $target = document.getElementById('targetCircle');
+const $pourer = document.getElementById('pourerCursor');
+const $cup = document.getElementById('cupCursor');
+const $progressArc = document.getElementById('progressArc');
+const $progressRing = document.getElementById('progressRing');
+const $scoreNum = document.getElementById('scoreNum');
+const $totalRounds = document.getElementById('totalRounds');
+const $roundNum = document.getElementById('roundNum');
+const $stateHint = document.getElementById('stateHint');
+const $introHint = document.getElementById('introHint');
+const $winModal = document.getElementById('winModal');
+
+const ARC_CIRCUMFERENCE = 2 * Math.PI * 72; // 452.39
+
+// ============ 输入 ============
+$container.addEventListener('mousemove', (e) => {
+  const rect = $container.getBoundingClientRect();
+  GameState.mouseX = e.clientX - rect.left;
+  GameState.mouseY = e.clientY - rect.top;
+});
+
+$container.addEventListener('click', (e) => {
+  if (!GameState.isPlaying) return;
+  if (GameState.ready) {
+    OnPourComplete();
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toUpperCase();
+  if (['W','A','S','D'].includes(k)) {
+    e.preventDefault();
+    GameState.keysDown[k] = true;
+  }
+});
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toUpperCase();
+  if (['W','A','S','D'].includes(k)) {
+    GameState.keysDown[k] = false;
+  }
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  $introHint.style.display = 'none';
+  GameState.isPlaying = true;
+  GameState.currentRound = 1;
+  UpdateRoundDisplay();
+});
+
+// ============ 白圈移动 ============
+
+// ★旋转白圈方向向量 (用于曲线游走 + 突变)
+function RotateTargetVelocity(angleRad) {
+  const cos = Math.cos(angleRad);
+  const sin = Math.sin(angleRad);
+  const vx = GameState.targetVx;
+  const vy = GameState.targetVy;
+  GameState.targetVx = vx * cos - vy * sin;
+  GameState.targetVy = vx * sin + vy * cos;
+
+  // 归一化, 避免数值累积导致速度漂移
+  const len = Math.sqrt(GameState.targetVx ** 2 + GameState.targetVy ** 2);
+  if (len > 0) {
+    GameState.targetVx /= len;
+    GameState.targetVy /= len;
+  }
+}
+
+function UpdateTarget(deltaTime) {
+  // ★方案B: 方向向量每帧小幅度旋转 (曲线游走)
+  // 在 ±driftStrength*deltaTime 范围内随机旋转
+  const drift = (Math.random() - 0.5) * 2 * CONFIG.targetDriftStrength * deltaTime;
+  RotateTargetVelocity(drift);
+
+  // ★方案A: 倒计时到点触发一次大幅突变
+  GameState.nextSuddenChange -= deltaTime;
+  if (GameState.nextSuddenChange <= 0) {
+    // 随机选一个旋转量 (正负随机, |angle| 在 [minAngle, maxAngle] 之间)
+    const sign = Math.random() < 0.5 ? -1 : 1;
+    const magnitude = CONFIG.targetSuddenChangeMinAngle +
+      Math.random() * (CONFIG.targetSuddenChangeAngle - CONFIG.targetSuddenChangeMinAngle);
+    RotateTargetVelocity(sign * magnitude);
+
+    // 重新随机下一次突变间隔
+    GameState.nextSuddenChange = CONFIG.targetSuddenChangeMin +
+      Math.random() * (CONFIG.targetSuddenChangeMax - CONFIG.targetSuddenChangeMin);
+  }
+
+  // 应用移动
+  GameState.targetX += GameState.targetVx * CONFIG.targetSpeed * deltaTime;
+  GameState.targetY += GameState.targetVy * CONFIG.targetSpeed * deltaTime;
+
+  const r = GameState.currentTargetRadius;
+  const minX = r;
+  const maxX = CONFIG.containerWidth - r;
+  const minY = CONFIG.hudHeight + r;
+  const maxY = CONFIG.containerHeight - r;
+
+  // 边界反弹: 不只取绝对值, 而是真正反射方向, 这样曲线运动碰边后也自然
+  if (GameState.targetX < minX) { GameState.targetX = minX; GameState.targetVx = Math.abs(GameState.targetVx); }
+  if (GameState.targetX > maxX) { GameState.targetX = maxX; GameState.targetVx = -Math.abs(GameState.targetVx); }
+  if (GameState.targetY < minY) { GameState.targetY = minY; GameState.targetVy = Math.abs(GameState.targetVy); }
+  if (GameState.targetY > maxY) { GameState.targetY = maxY; GameState.targetVy = -Math.abs(GameState.targetVy); }
+
+  $target.style.left = GameState.targetX + 'px';
+  $target.style.top = GameState.targetY + 'px';
+  $target.style.width = (r * 2) + 'px';
+  $target.style.height = (r * 2) + 'px';
+
+  // 进度环跟随白圈
+  $progressRing.style.left = GameState.targetX + 'px';
+  $progressRing.style.top = GameState.targetY + 'px';
+  // 进度环尺寸跟白圈对应
+  const ringRadius = r + 8;
+  $progressRing.setAttribute('width', ringRadius * 2);
+  $progressRing.setAttribute('height', ringRadius * 2);
+  $progressRing.setAttribute('viewBox', `0 0 ${ringRadius * 2} ${ringRadius * 2}`);
+  const c = document.getElementById('progressArc');
+  c.setAttribute('cx', ringRadius);
+  c.setAttribute('cy', ringRadius);
+  c.setAttribute('r', ringRadius - 4);
+  c.setAttribute('transform', `rotate(-90 ${ringRadius} ${ringRadius})`);
+  const circumference = 2 * Math.PI * (ringRadius - 4);
+  c.setAttribute('stroke-dasharray', circumference);
+  c.setAttribute('stroke-dashoffset', circumference * (1 - GameState.progress));
+}
+
+// ============ 茶杯移动 (键盘) ============
+function GetMovementVector() {
+  let dx = 0, dy = 0;
+  if (GameState.keysDown['W']) dy -= 1;
+  if (GameState.keysDown['S']) dy += 1;
+  if (GameState.keysDown['A']) dx -= 1;
+  if (GameState.keysDown['D']) dx += 1;
+  return { dx, dy };
+}
+
+function UpdateCup(deltaTime) {
+  const v = GetMovementVector();
+  if (v.dx === 0 && v.dy === 0) {
+    $cup.style.left = GameState.cupX + 'px';
+    $cup.style.top = GameState.cupY + 'px';
+    return;
+  }
+
+  let dx = v.dx, dy = v.dy;
+  if (CONFIG.normalizeDiagonal && dx !== 0 && dy !== 0) {
+    const inv = 1 / Math.sqrt(2);
+    dx *= inv;
+    dy *= inv;
+  }
+  dx *= CONFIG.cupSpeed * deltaTime;
+  dy *= CONFIG.cupSpeed * deltaTime;
+
+  GameState.cupX = Math.max(20, Math.min(CONFIG.containerWidth - 20, GameState.cupX + dx));
+  GameState.cupY = Math.max(CONFIG.hudHeight + 20, Math.min(CONFIG.containerHeight - 20, GameState.cupY + dy));
+
+  $cup.style.left = GameState.cupX + 'px';
+  $cup.style.top = GameState.cupY + 'px';
+}
+
+// ============ 鼠标(茶壶嘴) 更新 ============
+function UpdatePourer() {
+  $pourer.style.left = GameState.mouseX + 'px';
+  $pourer.style.top = GameState.mouseY + 'px';
+}
+
+// ============ 判定两个光标都在白圈内 ============
+function IsBothInsideTarget() {
+  const r = GameState.currentTargetRadius;  // ★当前局半径
+  // 茶壶嘴 (鼠标)
+  const dx1 = GameState.mouseX - GameState.targetX;
+  const dy1 = GameState.mouseY - GameState.targetY;
+  if (dx1*dx1 + dy1*dy1 > r*r) return false;
+  // 茶杯 (键盘)
+  const dx2 = GameState.cupX - GameState.targetX;
+  const dy2 = GameState.cupY - GameState.targetY;
+  if (dx2*dx2 + dy2*dy2 > r*r) return false;
+  return true;
+}
+
+// ============ 进度更新 ============
+function UpdateProgress(deltaTime) {
+  const inside = IsBothInsideTarget();
+
+  if (inside) {
+    GameState.progress = Math.min(1, GameState.progress + deltaTime / CONFIG.fillDuration);
+    $target.classList.add('both-in');
+    $pourer.classList.add('in-circle');
+    $cup.classList.add('in-circle');
+  } else {
+    if (GameState.progress > 0 && !GameState.ready) {
+      GameState.progress = CONFIG.fillProgressOnExit;
+    }
+    $target.classList.remove('both-in');
+    $pourer.classList.remove('in-circle');
+    $cup.classList.remove('in-circle');
+  }
+
+  // 进度满 → 准备出手
+  if (GameState.progress >= 1 && !GameState.ready) {
+    GameState.ready = true;
+    GameState.readyTimer = 0;  // ★开始计时完美窗口
+    $stateHint.textContent = '✦ 立刻点击左键 = 完美 ✦';
+    $stateHint.classList.add('ready');
+  }
+
+  // ★ready 状态下累计时间(用于评级判定)
+  if (GameState.ready) {
+    GameState.readyTimer += deltaTime;
+    // 在完美窗口内时给出特别提示
+    if (GameState.readyTimer <= CONFIG.perfectWindow) {
+      $stateHint.textContent = '✦ 立刻点击左键 = 完美 ✦';
+    } else {
+      $stateHint.textContent = '点击左键完成 (普通)';
+    }
+  }
+
+  // 状态提示
+  if (!GameState.ready) {
+    if (inside) {
+      $stateHint.textContent = '保持稳定…';
+    } else {
+      $stateHint.textContent = '将茶壶嘴与茶杯都对准白圈';
+    }
+    $stateHint.classList.remove('ready');
+  }
+
+  // 进度环颜色: 完美窗口内=绿色脉冲, 过窗口=普通绿色
+  if (GameState.ready) {
+    if (GameState.readyTimer <= CONFIG.perfectWindow) {
+      $progressArc.setAttribute('stroke', '#80ff80');
+    } else {
+      $progressArc.setAttribute('stroke', '#c0c0c0'); // 灰白色 - 不再完美
+    }
+  } else {
+    $progressArc.setAttribute('stroke', '#ffd070');
+  }
+}
+
+// ============ 完成出手 ============
+function OnPourComplete() {
+  // ★评级判定
+  const isPerfect = GameState.readyTimer <= CONFIG.perfectWindow;
+  GameState.roundResults.push(isPerfect ? 'perfect' : 'normal');
+  if (isPerfect) GameState.perfectCount++;
+
+  // 飘字反馈
+  ShowRatingText(GameState.targetX, GameState.targetY, isPerfect);
+
+  GameState.ready = false;
+  GameState.readyTimer = 0;
+
+  // 成功演出
+  $target.classList.add('success-flash');
+  setTimeout(() => $target.classList.remove('success-flash'), 600);
+
+  // 分数 + 1
+  $scoreNum.textContent = GameState.currentRound;
+  UpdateRatingDots();
+
+  if (GameState.currentRound >= CONFIG.totalRounds) {
+    OnGameWin();
+  } else {
+    GameState.currentRound++;
+    UpdateRoundDisplay();
+    StartNewRound();
+  }
+}
+
+// ★完美/普通飘字
+function ShowRatingText(x, y, isPerfect) {
+  const fx = document.createElement('div');
+  fx.className = 'rating-text';
+  fx.textContent = isPerfect ? '完美！' : '合格';
+  fx.style.left = x + 'px';
+  fx.style.top = y + 'px';
+  if (isPerfect) {
+    fx.style.color = '#80ff80';
+    fx.style.textShadow = '0 0 10px rgba(128,255,128,0.9)';
+    fx.style.fontSize = '24px';
+  } else {
+    fx.style.color = '#c0a060';
+    fx.style.textShadow = '0 0 6px rgba(192,160,96,0.6)';
+    fx.style.fontSize = '18px';
+  }
+  $container.appendChild(fx);
+  setTimeout(() => fx.remove(), 1200);
+}
+
+// ★更新顶部评级点
+function UpdateRatingDots() {
+  const $dots = document.getElementById('ratingDots');
+  $dots.innerHTML = '';
+  for (let i = 0; i < CONFIG.totalRounds; i++) {
+    const span = document.createElement('span');
+    span.className = 'rating-dot';
+    if (i < GameState.roundResults.length) {
+      span.classList.add(GameState.roundResults[i]);
+      span.textContent = GameState.roundResults[i] === 'perfect' ? '●' : '○';
+    } else {
+      span.textContent = '·';
+    }
+    $dots.appendChild(span);
+  }
+}
+
+function StartNewRound() {
+  GameState.progress = 0;
+
+  // ★白圈半径逐局缩小
+  const shrunkRadius = CONFIG.targetRadius - (GameState.currentRound - 1) * CONFIG.targetRadiusShrink;
+  GameState.currentTargetRadius = Math.max(CONFIG.targetMinRadius, shrunkRadius);
+
+  // 白圈随机新位置 + 新方向
+  const r = GameState.currentTargetRadius;
+  GameState.targetX = r + 50 + Math.random() * (CONFIG.containerWidth - 2 * r - 100);
+  GameState.targetY = CONFIG.hudHeight + r + 30 + Math.random() * (CONFIG.containerHeight - CONFIG.hudHeight - 2 * r - 60);
+  const angle = Math.random() * Math.PI * 2;
+  GameState.targetVx = Math.cos(angle);
+  GameState.targetVy = Math.sin(angle);
+
+  // ★重置突变倒计时
+  GameState.nextSuddenChange = CONFIG.targetSuddenChangeMin +
+    Math.random() * (CONFIG.targetSuddenChangeMax - CONFIG.targetSuddenChangeMin);
+}
+
+function UpdateRoundDisplay() {
+  $roundNum.textContent = GameState.currentRound;
+  $totalRounds.textContent = CONFIG.totalRounds;
+}
+
+// ★更新总时间倒计时HUD
+function UpdateTotalTimerHUD() {
+  const remain = Math.max(0, CONFIG.totalTimeLimit - GameState.totalElapsed);
+  const $num = document.getElementById('totalTimerNum');
+  const $hud = document.getElementById('totalTimerDisplay');
+  $num.textContent = remain.toFixed(1);
+  if (remain <= 5) {
+    $hud.classList.add('urgent');
+  } else {
+    $hud.classList.remove('urgent');
+  }
+}
+
+function OnGameWin() {
+  GameState.isPlaying = false;
+  GameState.isGameOver = true;
+
+  // ★显示完美数与奖励信息
+  const got = GameState.perfectCount;
+  const need = CONFIG.perfectsNeeded;
+  const $perfectInfo = document.getElementById('perfectInfo');
+  if (got >= need) {
+    $perfectInfo.innerHTML = `完美 <span style="color:#80ff80;">${got}</span> 杯 · <span style="color:#80ff80;">达成奖励条件 → 全局积分 +N (待定)</span>`;
+  } else {
+    $perfectInfo.innerHTML = `完美 <span style="color:#c0a060;">${got}</span> 杯 · 未达成奖励 (需要 ${need} 杯)`;
+  }
+
+  $winModal.classList.add('show');
+}
+
+// ★超时失败
+function OnTimeOut() {
+  GameState.isPlaying = false;
+  GameState.isGameOver = true;
+  document.getElementById('loseModal').classList.add('show');
+}
+
+function restartGame() {
+  GameState.currentRound = 1;
+  GameState.progress = 0;
+  GameState.ready = false;
+  GameState.readyTimer = 0;
+  GameState.totalElapsed = 0;
+  GameState.perfectCount = 0;
+  GameState.roundResults = [];
+  GameState.isPlaying = true;
+  GameState.isGameOver = false;
+  $scoreNum.textContent = 0;
+  UpdateRoundDisplay();
+  UpdateRatingDots();
+  StartNewRound();
+  $winModal.classList.remove('show');
+  document.getElementById('loseModal').classList.remove('show');
+}
+
+// ============ 主循环 ============
+let lastTime = performance.now();
+function GameLoop(currentTime) {
+  const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
+  lastTime = currentTime;
+
+  UpdatePourer(); // 鼠标光标始终更新
+  if (GameState.isPlaying && !GameState.isGameOver) {
+    GameState.totalElapsed += deltaTime;
+    UpdateTotalTimerHUD();
+    UpdateTarget(deltaTime);
+    UpdateCup(deltaTime);
+    UpdateProgress(deltaTime);
+
+    // ★超时判定
+    if (GameState.totalElapsed >= CONFIG.totalTimeLimit) {
+      OnTimeOut();
+    }
+  }
+
+  requestAnimationFrame(GameLoop);
+}
+
+// ============ 调试面板 ============
+function setupDebugPanel() {
+  const fields = [
+    'targetRadius', 'targetRadiusShrink', 'targetSpeed', 'cupSpeed',
+    'fillDuration', 'totalRounds', 'totalTimeLimit', 'perfectWindow', 'perfectsNeeded',
+    'targetDriftStrength', 'targetSuddenChangeMax'
+  ];
+  for (const f of fields) {
+    const input = document.getElementById(`cfg-${f}`);
+    const val = document.getElementById(`val-${f}`);
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value);
+      CONFIG[f] = v;
+      val.textContent = f === 'fillDuration' ? v.toFixed(1) : v;
+      if (f === 'totalRounds') UpdateRoundDisplay();
+    });
+  }
+  document.getElementById('cfg-normalizeDiagonal').addEventListener('change', (e) => {
+    CONFIG.normalizeDiagonal = e.target.checked;
+  });
+}
+
+// ============ 启动 ============
+setupDebugPanel();
+UpdateRoundDisplay();
+requestAnimationFrame(GameLoop);
+</script>
+
+</body>
+</html>

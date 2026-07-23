@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>渡厄镇 — T16 躲开追击你的怪物 (玩法 demo v6)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: '微软雅黑', sans-serif;
+    background: #1a1416;
+    color: #d4c5b9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    user-select: none;
+  }
+
+  h1 { color: #8b1a1a; margin-bottom: 8px; font-size: 22px; letter-spacing: 2px; }
+  .subtitle { color: #807060; margin-bottom: 16px; font-size: 13px; }
+
+  /* ============ 游戏容器 ============ */
+  #gameContainer {
+    position: relative;
+    width: 600px;
+    height: 500px;
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(139, 26, 26, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 60%, rgba(139, 26, 26, 0.12) 0%, transparent 50%),
+      linear-gradient(135deg, #2a1a1a 0%, #1a1010 100%);
+    border: 3px solid #8b1a1a;
+    box-shadow: 0 0 30px rgba(139, 26, 26, 0.5), inset 0 0 50px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    cursor: none;
+  }
+
+  /* 苔藓质感叠加 */
+  #gameContainer::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, transparent 0, transparent 8px, rgba(139, 26, 26, 0.05) 8px, rgba(139, 26, 26, 0.05) 9px),
+      repeating-linear-gradient(-45deg, transparent 0, transparent 12px, rgba(139, 26, 26, 0.03) 12px, rgba(139, 26, 26, 0.03) 13px);
+    pointer-events: none;
+  }
+
+  /* ============ 玩家 ============ */
+  #player {
+    position: absolute;
+    width: 30px;
+    height: 50px;
+    transform: translate(-50%, -50%);
+    transition: filter 0.1s;
+    z-index: 10;
+    font-size: 36px;
+    line-height: 1;
+    text-align: center;
+    /* 占位: 红布 — 用红色emoji */
+    color: #c81e1e;
+    text-shadow: 0 0 8px rgba(200, 30, 30, 0.8), 0 0 16px rgba(200, 30, 30, 0.4);
+  }
+  #player.hit { animation: hitFlash 0.15s ease-in-out 6; }
+  #player.dying { animation: dying 1.5s ease-out forwards; }
+  @keyframes hitFlash {
+    0%, 100% { filter: brightness(1); opacity: 1; }
+    50% { filter: brightness(2.5) hue-rotate(30deg); opacity: 0.3; }
+  }
+  @keyframes dying {
+    0% { transform: translate(-50%, -50%) scale(1) rotate(0); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2) rotate(360deg); opacity: 0; filter: blur(8px); }
+  }
+
+  /* ============ 影子 ============ */
+  .shadow {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5;
+    font-size: 44px;
+    line-height: 1;
+    text-align: center;
+    color: rgba(20, 0, 0, 0.85);
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.9), 0 0 20px rgba(80, 0, 0, 0.5);
+    filter: blur(0.5px);
+  }
+  .shadow.spawning { animation: shadowSpawn 0.3s ease-out; }
+  @keyframes shadowSpawn {
+    from { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+
+  /* ============ 血包 (小块红布) ============ */
+  .pickup {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 6;
+    background: linear-gradient(135deg, #d42020 0%, #8b1a1a 100%);
+    border: 1px solid #ffcc60;
+    box-shadow:
+      0 0 12px rgba(255, 200, 80, 0.7),
+      inset 0 0 6px rgba(255, 200, 80, 0.4);
+    animation: pickupPulse 1.2s ease-in-out infinite;
+  }
+  .pickup::after {
+    content: '渡';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffd070;
+    font-size: 14px;
+    font-weight: bold;
+    text-shadow: 0 0 4px #8b1a1a;
+  }
+  @keyframes pickupPulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 12px rgba(255, 200, 80, 0.7), inset 0 0 6px rgba(255, 200, 80, 0.4); }
+    50% { transform: translate(-50%, -50%) scale(1.15); box-shadow: 0 0 20px rgba(255, 200, 80, 1), inset 0 0 8px rgba(255, 200, 80, 0.6); }
+  }
+  .pickup.spawning { animation: pickupSpawn 0.4s ease-out, pickupPulse 1.2s ease-in-out infinite 0.4s; }
+  @keyframes pickupSpawn {
+    from { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  .pickup.expiring { animation: pickupExpire 0.4s ease-out forwards; }
+  @keyframes pickupExpire {
+    from { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    to { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  }
+  .pickup.eaten { animation: pickupEaten 0.5s ease-out forwards; }
+  @keyframes pickupEaten {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+  }
+
+  /* 治疗特效 */
+  .heal-effect {
+    position: absolute;
+    pointer-events: none;
+    z-index: 11;
+    color: #80ff80;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(128, 255, 128, 0.8);
+    animation: healFloat 1s ease-out forwards;
+  }
+  @keyframes healFloat {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    20% { transform: translate(-50%, -100%) scale(1.2); opacity: 1; }
+    100% { transform: translate(-50%, -180%) scale(1); opacity: 0; }
+  }
+
+  /* ============ HUD ============ */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 20;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+    pointer-events: none;
+  }
+  #lives { display: flex; gap: 4px; font-size: 24px; }
+  .life { color: #c81e1e; text-shadow: 0 0 6px #c81e1e; transition: opacity 0.3s; }
+  .life.lost { opacity: 0.15; filter: grayscale(1) blur(1px); }
+  #timer {
+    font-size: 28px; font-weight: bold;
+    color: #d4c5b9; letter-spacing: 3px;
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+  }
+  #timer.urgent { color: #ff4040; animation: urgentPulse 0.5s ease-in-out infinite alternate; }
+  @keyframes urgentPulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.15); }
+  }
+  #phaseInfo {
+    font-size: 11px;
+    color: #807060;
+    font-family: monospace;
+  }
+
+  /* ============ 屏幕红闪 ============ */
+  #hitOverlay {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(200, 30, 30, 0.5), transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 30;
+  }
+  #hitOverlay.flash { animation: hitOverlayAnim 0.3s ease-out; }
+  @keyframes hitOverlayAnim {
+    0% { opacity: 0; }
+    30% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* ============ 引导提示 ============ */
+  #introHint {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #8b1a1a;
+    padding: 16px 28px;
+    text-align: center;
+    z-index: 40;
+    font-size: 14px;
+    line-height: 1.8;
+    letter-spacing: 1px;
+    animation: hintFade 4s ease-in forwards;
+  }
+  @keyframes hintFade {
+    0%, 60% { opacity: 1; }
+    100% { opacity: 0; pointer-events: none; }
+  }
+
+  /* ============ 失败/胜利弹窗 ============ */
+  .modal {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  .modal.show { display: flex; }
+  .modal-content {
+    text-align: center;
+    padding: 30px 50px;
+    border: 2px solid #8b1a1a;
+    background: linear-gradient(135deg, #2a1a1a, #1a0a0a);
+    box-shadow: 0 0 30px rgba(139, 26, 26, 0.4);
+    max-width: 80%;
+  }
+  .modal-title { font-size: 24px; color: #c81e1e; margin-bottom: 16px; letter-spacing: 4px; }
+  .modal-text { font-size: 14px; color: #d4c5b9; line-height: 1.8; margin-bottom: 20px; }
+  .modal-text .sanity { color: #ff8040; }
+  .modal-text .ok { color: #80c080; }
+  .btn {
+    padding: 8px 28px;
+    background: transparent;
+    border: 1px solid #8b1a1a;
+    color: #d4c5b9;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+  }
+  .btn:hover { background: rgba(139, 26, 26, 0.3); color: #fff; }
+
+  /* ============ 调试面板 ============ */
+  #debugPanel {
+    margin-top: 20px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid #404040;
+    width: 600px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #a09080;
+  }
+  #debugPanel h3 { color: #c8a060; margin-bottom: 10px; font-size: 13px; letter-spacing: 2px; }
+  .debug-row { display: flex; gap: 20px; margin-bottom: 6px; align-items: center; }
+  .debug-row label { min-width: 180px; }
+  .debug-row input[type="range"] { flex: 1; }
+  .debug-row .value { min-width: 60px; text-align: right; color: #c8a060; }
+  #globalSanityDisplay {
+    margin-top: 12px;
+    padding: 10px;
+    background: rgba(139, 26, 26, 0.1);
+    border-left: 3px solid #8b1a1a;
+  }
+  #globalSanityDisplay .label { font-size: 11px; color: #808080; }
+  #globalSanityDisplay .value { font-size: 18px; color: #c81e1e; }
+  .toggle-btn {
+    margin-top: 8px;
+    padding: 4px 12px;
+    font-size: 11px;
+  }
+
+  .footer {
+    margin-top: 16px;
+    font-size: 11px;
+    color: #606060;
+    text-align: center;
+    max-width: 600px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<h1>渡厄镇 · T16 躲开追击你的怪物</h1>
+<div class="subtitle">玩法原型 demo v6 · 血包不消失版 · WSAD 移动 · 避开影子撑过 60 秒</div>
+
+<div id="gameContainer">
+  <div id="hud">
+    <div id="lives">
+      <span class="life">🩸</span>
+      <span class="life">🩸</span>
+      <span class="life">🩸</span>
+    </div>
+    <div id="timer">00:60</div>
+    <div id="phaseInfo">Phase 1</div>
+  </div>
+
+  <div id="player">▼</div>
+  <div id="hitOverlay"></div>
+
+  <div id="introHint">
+    WSAD 控制红布移动 (支持斜向)<br>
+    避开影子, 撑过 60 秒<br>
+    <span style="color:#ffcc60;font-size:12px;">★ 红色"渡"字小方块 = 血包(会移动!), 吃了 +1 生命</span>
+  </div>
+
+  <div id="loseModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">你被怪物咬伤了胳膊</div>
+      <div class="modal-text">
+        <span class="sanity">扣除状态值 -10</span>
+      </div>
+      <button class="btn" onclick="restartGame()">重新开始</button>
+    </div>
+  </div>
+
+  <div id="winModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">你成功甩开了怪物一段距离</div>
+      <div class="modal-text">
+        <span style="font-size:11px;color:#808080;">[ 进入下一段剧情 ]</span>
+      </div>
+      <button class="btn" onclick="restartGame()">进入下一段</button>
+    </div>
+  </div>
+</div>
+
+<div id="debugPanel">
+  <h3>★ 调试面板 (策划用 — 拖动调整数值, 立刻生效)</h3>
+
+  <div class="debug-row">
+    <label>玩家速度 (px/s)</label>
+    <input type="range" id="cfg-playerSpeed" min="100" max="400" value="250" step="10">
+    <span class="value" id="val-playerSpeed">250</span>
+  </div>
+
+  <div class="debug-row">
+    <label>★本局生命值上限</label>
+    <input type="range" id="cfg-maxLives" min="1" max="5" value="3" step="1">
+    <span class="value" id="val-maxLives">3</span>
+  </div>
+
+  <div class="debug-row">
+    <label>无敌帧时长 (秒)</label>
+    <input type="range" id="cfg-invincibleDuration" min="0.3" max="2" value="1" step="0.1">
+    <span class="value" id="val-invincibleDuration">1.0</span>
+  </div>
+
+  <div class="debug-row">
+    <label>玩家碰撞半径 (px)</label>
+    <input type="range" id="cfg-playerHitRadius" min="10" max="30" value="18" step="1">
+    <span class="value" id="val-playerHitRadius">18</span>
+  </div>
+
+  <div class="debug-row">
+    <label>影子碰撞半径 (px)</label>
+    <input type="range" id="cfg-shadowHitRadius" min="15" max="40" value="25" step="1">
+    <span class="value" id="val-shadowHitRadius">25</span>
+  </div>
+
+  <div class="debug-row">
+    <label>失败扣全局状态值 -N</label>
+    <input type="range" id="cfg-sanityPenalty" min="5" max="30" value="10" step="1">
+    <span class="value" id="val-sanityPenalty">10</span>
+  </div>
+
+  <div id="globalSanityDisplay">
+    <div class="label">主角全局状态值 V18 (满 100)</div>
+    <div class="value" id="globalSanityVal">100</div>
+  </div>
+
+  <div class="debug-row" style="margin-top:12px;padding-top:12px;border-top:1px solid #303030;">
+    <label>★斜向速度归一化</label>
+    <input type="checkbox" id="cfg-normalizeDiagonal" checked style="width:18px;height:18px;flex:0;">
+    <span class="value" id="val-normalizeDiagonal" style="flex:1;text-align:left;font-size:11px;color:#807060;">
+      勾选=斜走与直走同速(推荐) · 取消=斜走快√2倍
+    </span>
+  </div>
+
+  <div class="debug-row">
+    <label>★启用血包系统</label>
+    <input type="checkbox" id="cfg-pickupEnabled" checked style="width:18px;height:18px;flex:0;">
+    <span class="value" style="flex:1;text-align:left;font-size:11px;color:#807060;">
+      勾选=屏幕上始终有1个红布血包(8秒消失, 吃了+1生命)
+    </span>
+  </div>
+
+  <div class="debug-row">
+    <label>★血包移动速度 (px/s)</label>
+    <input type="range" id="cfg-pickupSpeed" min="0" max="200" value="80" step="10">
+    <span class="value" id="val-pickupSpeed">80</span>
+  </div>
+
+
+
+  <button class="btn toggle-btn" onclick="resetGlobalSanity()">重置全局状态值</button>
+</div>
+
+<div class="footer">
+  ★ 占位说明:<br>
+  红色 ▼ = 红布飘带 (CH_T16_P) · 黑色幽灵图 = 影子 (CH_T16_M) · 背景红色苔藓纹理 = 巷子俯视图 (BG_T16)<br>
+  正式项目接入 Unity 时, 用 SpriteRenderer 替换上述占位即可
+</div>
+
+<script>
+// ============================================================
+// T16 怪物追击玩法 — Unity 风格 JS 实现
+// 设计文档对应: 渡厄镇_T16怪物追击玩法设计文档_v1.xlsx
+// ============================================================
+
+// ============ 配置 (来自设计文档·程序对接参数) ============
+const CONFIG = {
+  // 玩家
+  playerSpeed: 250,      // px/s — 设计文档默认值
+  maxLives: 3,           // 本局生命值上限
+  invincibleDuration: 1.0, // 受击后无敌秒数
+  playerHitRadius: 18,   // 玩家碰撞半径 (视觉30×50, 实际碰撞箱缩小25%)
+  shadowHitRadius: 25,   // 影子碰撞半径 (视觉50×50, 实际缩小25%)
+
+  // 玩法
+  totalDuration: 60,     // 玩法总时长
+  sanityPenalty: 10,     // 失败一局扣全局状态值V18多少
+
+  // 难度曲线 — 6阶段 (来自设计文档·难度曲线)
+  phases: [
+    { time: 0,  maxShadows: 5, speed: 250, interval: 0.8 },  // P1: 0~10s
+    { time: 10, maxShadows: 7, speed: 290, interval: 0.6 },  // P2: 10~20s
+    { time: 20, maxShadows: 9, speed: 330, interval: 0.5 },  // P3: 20~30s
+    { time: 30, maxShadows: 12, speed: 370, interval: 0.4 }, // P4: 30~40s
+    { time: 40, maxShadows: 14, speed: 410, interval: 0.32 },// P5: 40~50s
+    { time: 50, maxShadows: 16, speed: 450, interval: 0.28 },// P6: 50~60s (高潮)
+  ],
+
+  // 屏幕尺寸 (与CSS对应)
+  containerWidth: 600,
+  containerHeight: 500,
+  hudHeight: 50, // 顶部HUD区域, 玩家不可进入
+
+  // 8向移动 — 斜走速度处理
+  // true=斜走分量乘0.707 (业界标准, Unity Vector2.normalized)
+  // false=斜走更快 (√2倍, 玩家可"利用"加速)
+  normalizeDiagonal: true,
+
+  // ====== 血包系统 ======
+  pickupEnabled: true,        // 是否启用血包
+  pickupFirstDelay: 5,        // 开局后多少秒出现第一个血包
+  pickupHeal: 1,              // 吃到回复多少生命值
+  pickupMinDistFromPlayer: 100, // 血包刷新位置距玩家至少多少 px
+  pickupHitRadius: 16,        // 血包碰撞半径
+  pickupSpeed: 120,           // 血包移动速度 px/s (★0=静止, 推荐60~120)
+  // 注: 已移除pickupLifetime (8秒消失逻辑) — 血包永久存在直到被吃
+};
+
+// ============ 美术资产接口 (★正式项目替换为图片路径) ============
+const ASSETS = {
+  player: {
+    placeholder: '▼',     // ★替换为 红布飘带 PNG
+    fallback: '🩸',
+  },
+  shadow: {
+    placeholder: '👤',    // ★替换为 影子 PNG
+    fallback: '◐',
+  },
+  // 背景图直接用 CSS 渐变, 正式项目替换为 BG_T16 俯视图
+};
+
+// ============ 状态 (Unity 风格 — 类似 GameManager 单例) ============
+const GameState = {
+  // 玩家
+  playerX: CONFIG.containerWidth / 2,
+  playerY: CONFIG.containerHeight / 2,
+  playerLives: CONFIG.maxLives,
+  isInvincible: false,
+  invincibleTimer: 0,
+
+  // 输入 — 按下时间戳 (实现"取最后按下的方向")
+  keyPressTime: { W: 0, A: 0, S: 0, D: 0 },
+  keysDown: { W: false, A: false, S: false, D: false },
+
+  // 玩法
+  countdown: CONFIG.totalDuration,
+  currentPhase: 0,
+  shadows: [],          // [{x, y, vx, vy, id}]
+  shadowSpawnTimer: 0,
+  nextShadowId: 0,
+
+  // 全局
+  globalSanity: 100,    // V18
+
+  // 流程
+  isPlaying: false,
+  isGameOver: false,
+
+  // ====== 血包状态 ======
+  pickup: null,           // {x, y, el, lifeTimer} 或 null
+  pickupSpawnTimer: 0,    // 距离下一次刷新血包的秒数 (0=可立刻刷新)
+};
+
+// ============ DOM 引用 ============
+const $container = document.getElementById('gameContainer');
+const $player = document.getElementById('player');
+const $hitOverlay = document.getElementById('hitOverlay');
+const $timer = document.getElementById('timer');
+const $phaseInfo = document.getElementById('phaseInfo');
+const $lives = document.getElementById('lives');
+const $loseModal = document.getElementById('loseModal');
+const $winModal = document.getElementById('winModal');
+const $globalSanityVal = document.getElementById('globalSanityVal');
+const $introHint = document.getElementById('introHint');
+
+// ============ 初始化占位资源 ============
+function initAssets() {
+  $player.textContent = ASSETS.player.placeholder;
+}
+
+// ============ 输入系统 (Unity 中对应 Input.GetKey) ============
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toUpperCase();
+  if (['W', 'A', 'S', 'D'].includes(k)) {
+    e.preventDefault();
+    if (!GameState.keysDown[k]) {
+      GameState.keysDown[k] = true;
+      GameState.keyPressTime[k] = performance.now(); // 记录按下时间
+    }
+  }
+});
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toUpperCase();
+  if (['W', 'A', 'S', 'D'].includes(k)) {
+    GameState.keysDown[k] = false;
+  }
+});
+
+// 解析当前移动向量 — ★8向移动: 同时按下两个键 = 斜向
+// 反向键互相抵消 (W+S 或 A+D 同时按 = 该轴不动)
+function GetMovementVector() {
+  let dx = 0, dy = 0;
+  if (GameState.keysDown['W']) dy -= 1;
+  if (GameState.keysDown['S']) dy += 1;
+  if (GameState.keysDown['A']) dx -= 1;
+  if (GameState.keysDown['D']) dx += 1;
+  return { dx, dy };
+}
+
+// ============ 玩家移动 (Unity 中对应 Player.Update) ============
+function UpdatePlayer(deltaTime) {
+  const v = GetMovementVector();
+  if (v.dx === 0 && v.dy === 0) return;
+
+  // ★斜走分量处理 (Unity 中对应 Vector2.normalized * speed)
+  let dx = v.dx, dy = v.dy;
+  if (CONFIG.normalizeDiagonal && dx !== 0 && dy !== 0) {
+    // 斜向 = (±1, ±1), magnitude = √2, 归一化分量 = ±0.707
+    const inv = 1 / Math.sqrt(2);
+    dx *= inv;
+    dy *= inv;
+  }
+  dx *= CONFIG.playerSpeed * deltaTime;
+  dy *= CONFIG.playerSpeed * deltaTime;
+
+  // 边界约束 (Unity 中可用 Mathf.Clamp)
+  GameState.playerX = Math.max(20, Math.min(CONFIG.containerWidth - 20, GameState.playerX + dx));
+  GameState.playerY = Math.max(CONFIG.hudHeight + 20, Math.min(CONFIG.containerHeight - 20, GameState.playerY + dy));
+
+  $player.style.left = GameState.playerX + 'px';
+  $player.style.top = GameState.playerY + 'px';
+}
+
+// ============ 影子系统 ============
+function SpawnShadow() {
+  const phase = CONFIG.phases[GameState.currentPhase];
+
+  // 1. 随机选边
+  const side = Math.floor(Math.random() * 4); // 0上 1右 2下 3左
+  let x, y, angle;
+
+  // 2. 在边上随机选位置 (略偏内, 避免立刻飞出)
+  const margin = 20;
+  // ★影子从生成点指向屏幕中心区域, 加 ±60度随机偏移
+  // 这样影子大概率会穿过屏幕中央, 玩家站着不动也会被打到
+  const centerX = CONFIG.containerWidth / 2;
+  const centerY = (CONFIG.containerHeight + CONFIG.hudHeight) / 2;
+  const angleRandomRange = Math.PI * 2 / 3; // ±60度 = 120度总范围
+
+  if (side === 0) { // 上
+    x = margin + Math.random() * (CONFIG.containerWidth - margin * 2);
+    y = -10;
+  } else if (side === 1) { // 右
+    x = CONFIG.containerWidth + 10;
+    y = CONFIG.hudHeight + margin + Math.random() * (CONFIG.containerHeight - CONFIG.hudHeight - margin * 2);
+  } else if (side === 2) { // 下
+    x = margin + Math.random() * (CONFIG.containerWidth - margin * 2);
+    y = CONFIG.containerHeight + 10;
+  } else { // 左
+    x = -10;
+    y = CONFIG.hudHeight + margin + Math.random() * (CONFIG.containerHeight - CONFIG.hudHeight - margin * 2);
+  }
+  // 计算指向屏幕中心的基础角度, 然后加上随机偏移
+  const baseAngle = Math.atan2(centerY - y, centerX - x);
+  angle = baseAngle + (Math.random() - 0.5) * angleRandomRange;
+
+  const speed = phase.speed;
+  const shadow = {
+    id: GameState.nextShadowId++,
+    x, y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    el: null,
+  };
+
+  // 创建 DOM 元素 (Unity 中对应 Instantiate Prefab)
+  const el = document.createElement('div');
+  el.className = 'shadow spawning';
+  el.textContent = ASSETS.shadow.placeholder;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  $container.appendChild(el);
+  shadow.el = el;
+
+  GameState.shadows.push(shadow);
+}
+
+function UpdateShadows(deltaTime) {
+  // 移动 + 边界检测销毁
+  for (let i = GameState.shadows.length - 1; i >= 0; i--) {
+    const s = GameState.shadows[i];
+    s.x += s.vx * deltaTime;
+    s.y += s.vy * deltaTime;
+
+    // 飞出屏幕 = 销毁 (Unity 中对应 Destroy GameObject)
+    if (s.x < -50 || s.x > CONFIG.containerWidth + 50 ||
+        s.y < -50 || s.y > CONFIG.containerHeight + 50) {
+      s.el.remove();
+      GameState.shadows.splice(i, 1);
+      continue;
+    }
+
+    s.el.style.left = s.x + 'px';
+    s.el.style.top = s.y + 'px';
+  }
+
+  // 生成新影子
+  GameState.shadowSpawnTimer -= deltaTime;
+  const phase = CONFIG.phases[GameState.currentPhase];
+  if (GameState.shadowSpawnTimer <= 0 && GameState.shadows.length < phase.maxShadows) {
+    SpawnShadow();
+    GameState.shadowSpawnTimer = phase.interval;
+  }
+}
+
+// ============ 血包系统 ============
+function SpawnPickup() {
+  if (!CONFIG.pickupEnabled) return;
+
+  // 找一个距离玩家至少 pickupMinDistFromPlayer 的随机位置
+  let x, y;
+  let tries = 0;
+  do {
+    x = 40 + Math.random() * (CONFIG.containerWidth - 80);
+    y = CONFIG.hudHeight + 40 + Math.random() * (CONFIG.containerHeight - CONFIG.hudHeight - 80);
+    const dx = x - GameState.playerX;
+    const dy = y - GameState.playerY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist >= CONFIG.pickupMinDistFromPlayer) break;
+    tries++;
+  } while (tries < 20);
+
+  const el = document.createElement('div');
+  el.className = 'pickup spawning';
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  $container.appendChild(el);
+
+  // ★随机初始方向 (单位向量)
+  const angle = Math.random() * Math.PI * 2;
+  const vx = Math.cos(angle);
+  const vy = Math.sin(angle);
+
+  GameState.pickup = {
+    x, y, el,
+    vx, vy,  // 单位方向向量, 乘以 CONFIG.pickupSpeed 得到实际速度
+    // 已移除 lifeTimer — 血包永久存在直到被吃
+  };
+}
+
+function UpdatePickup(deltaTime) {
+  if (!CONFIG.pickupEnabled) return;
+
+  if (GameState.pickup) {
+    const p = GameState.pickup;
+
+    // ★移动 + 边界反弹
+    if (CONFIG.pickupSpeed > 0) {
+      p.x += p.vx * CONFIG.pickupSpeed * deltaTime;
+      p.y += p.vy * CONFIG.pickupSpeed * deltaTime;
+
+      const margin = 20;
+      const minX = margin;
+      const maxX = CONFIG.containerWidth - margin;
+      const minY = CONFIG.hudHeight + margin;
+      const maxY = CONFIG.containerHeight - margin;
+
+      if (p.x < minX) { p.x = minX; p.vx = Math.abs(p.vx); }
+      if (p.x > maxX) { p.x = maxX; p.vx = -Math.abs(p.vx); }
+      if (p.y < minY) { p.y = minY; p.vy = Math.abs(p.vy); }
+      if (p.y > maxY) { p.y = maxY; p.vy = -Math.abs(p.vy); }
+
+      p.el.style.left = p.x + 'px';
+      p.el.style.top = p.y + 'px';
+    }
+    // 已移除生命周期逻辑 — 血包永久存在直到被吃
+  } else {
+    // 没有血包时, 倒计时刷新(开局第一个有延迟)
+    GameState.pickupSpawnTimer -= deltaTime;
+    if (GameState.pickupSpawnTimer <= 0) {
+      SpawnPickup();
+    }
+  }
+}
+
+function CheckPickupCollision() {
+  if (!GameState.pickup) return;
+
+  const dx = GameState.pickup.x - GameState.playerX;
+  const dy = GameState.pickup.y - GameState.playerY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < CONFIG.playerHitRadius + CONFIG.pickupHitRadius) {
+    OnPickupEaten();
+  }
+}
+
+function OnPickupEaten() {
+  const wasFullHealth = GameState.playerLives >= CONFIG.maxLives;
+
+  // 吃到效果
+  if (!wasFullHealth) {
+    GameState.playerLives = Math.min(CONFIG.maxLives, GameState.playerLives + CONFIG.pickupHeal);
+    UpdateLivesUI();
+    // 治疗特效
+    ShowHealEffect(GameState.pickup.x, GameState.pickup.y, '+' + CONFIG.pickupHeal);
+  } else {
+    // 满血浪费
+    ShowHealEffect(GameState.pickup.x, GameState.pickup.y, '满血');
+  }
+
+  // 血包消失动画
+  GameState.pickup.el.classList.remove('spawning');
+  GameState.pickup.el.classList.add('eaten');
+  const oldEl = GameState.pickup.el;
+  setTimeout(() => oldEl.remove(), 500);
+
+  GameState.pickup = null;
+  GameState.pickupSpawnTimer = 0; // 立刻刷新下一个
+}
+
+function ShowHealEffect(x, y, text) {
+  const fx = document.createElement('div');
+  fx.className = 'heal-effect';
+  fx.textContent = text;
+  fx.style.left = x + 'px';
+  fx.style.top = y + 'px';
+  if (text === '满血') {
+    fx.style.color = '#c0c0c0';
+    fx.style.textShadow = '0 0 6px rgba(192,192,192,0.6)';
+  }
+  $container.appendChild(fx);
+  setTimeout(() => fx.remove(), 1000);
+}
+
+// ============ 碰撞检测 (Unity 中对应 OnTriggerEnter) ============
+function CheckCollisions() {
+  if (GameState.isInvincible) return;
+
+  for (const s of GameState.shadows) {
+    const dx = s.x - GameState.playerX;
+    const dy = s.y - GameState.playerY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < CONFIG.playerHitRadius + CONFIG.shadowHitRadius) {
+      OnPlayerHit();
+      return;
+    }
+  }
+}
+
+function OnPlayerHit() {
+  GameState.playerLives--;
+  GameState.isInvincible = true;
+  GameState.invincibleTimer = CONFIG.invincibleDuration;
+
+  // 视觉反馈
+  $player.classList.add('hit');
+  $hitOverlay.classList.add('flash');
+  setTimeout(() => $hitOverlay.classList.remove('flash'), 300);
+
+  // 更新生命值HUD
+  UpdateLivesUI();
+
+  if (GameState.playerLives <= 0) {
+    OnPlayerLose();
+  }
+}
+
+function UpdateLivesUI() {
+  const lifeEls = $lives.querySelectorAll('.life');
+  for (let i = 0; i < lifeEls.length; i++) {
+    lifeEls[i].classList.toggle('lost', i >= GameState.playerLives);
+  }
+}
+
+// ============ 阶段切换 ============
+function UpdatePhase() {
+  const elapsed = CONFIG.totalDuration - GameState.countdown;
+  let phase = 0;
+  for (let i = CONFIG.phases.length - 1; i >= 0; i--) {
+    if (elapsed >= CONFIG.phases[i].time) {
+      phase = i;
+      break;
+    }
+  }
+  if (phase !== GameState.currentPhase) {
+    GameState.currentPhase = phase;
+    $phaseInfo.textContent = `Phase ${phase + 1}  /  Shadows: ${CONFIG.phases[phase].maxShadows}  /  Speed: ${CONFIG.phases[phase].speed}`;
+  }
+}
+
+// ============ 计时器 ============
+function UpdateTimer(deltaTime) {
+  GameState.countdown -= deltaTime;
+  if (GameState.countdown <= 0) {
+    GameState.countdown = 0;
+    OnPlayerWin();
+    return;
+  }
+  const secs = Math.ceil(GameState.countdown);
+  $timer.textContent = `00:${String(secs).padStart(2, '0')}`;
+  $timer.classList.toggle('urgent', secs <= 10);
+}
+
+// ============ 无敌帧 ============
+function UpdateInvincibility(deltaTime) {
+  if (GameState.isInvincible) {
+    GameState.invincibleTimer -= deltaTime;
+    if (GameState.invincibleTimer <= 0) {
+      GameState.isInvincible = false;
+      $player.classList.remove('hit');
+    }
+  }
+}
+
+// ============ 胜负 ============
+function OnPlayerWin() {
+  GameState.isPlaying = false;
+  GameState.isGameOver = true;
+  // 清空影子
+  GameState.shadows.forEach(s => s.el.remove());
+  GameState.shadows = [];
+  setTimeout(() => $winModal.classList.add('show'), 500);
+}
+
+function OnPlayerLose() {
+  GameState.isPlaying = false;
+  GameState.isGameOver = true;
+  $player.classList.remove('hit');
+  $player.classList.add('dying');
+
+  // 扣全局状态值 V18
+  GameState.globalSanity = Math.max(0, GameState.globalSanity - CONFIG.sanityPenalty);
+  $globalSanityVal.textContent = GameState.globalSanity;
+
+  // 更新弹窗中显示的扣分
+  const sanityEl = $loseModal.querySelector('.sanity');
+  sanityEl.textContent = `扣除主角状态值 -${CONFIG.sanityPenalty}  (剩余 ${GameState.globalSanity})`;
+
+  setTimeout(() => $loseModal.classList.add('show'), 1500);
+}
+
+function restartGame() {
+  // 状态重置
+  GameState.playerX = CONFIG.containerWidth / 2;
+  GameState.playerY = CONFIG.containerHeight / 2;
+  GameState.playerLives = CONFIG.maxLives;
+  GameState.isInvincible = false;
+  GameState.invincibleTimer = 0;
+  GameState.countdown = CONFIG.totalDuration;
+  GameState.currentPhase = 0;
+  GameState.shadows.forEach(s => s.el.remove());
+  GameState.shadows = [];
+  GameState.shadowSpawnTimer = 0.5;
+  GameState.isPlaying = true;
+  GameState.isGameOver = false;
+  GameState.keysDown = { W: false, A: false, S: false, D: false };
+
+  // 重置生命值HUD — 先清空再重建
+  $lives.innerHTML = '';
+  for (let i = 0; i < CONFIG.maxLives; i++) {
+    const span = document.createElement('span');
+    span.className = 'life';
+    span.textContent = '🩸';
+    $lives.appendChild(span);
+  }
+
+  $player.classList.remove('dying', 'hit');
+  $player.style.left = GameState.playerX + 'px';
+  $player.style.top = GameState.playerY + 'px';
+  $loseModal.classList.remove('show');
+  $winModal.classList.remove('show');
+}
+
+function resetGlobalSanity() {
+  GameState.globalSanity = 100;
+  $globalSanityVal.textContent = 100;
+}
+
+// ============ 主循环 (Unity 中对应 Update) ============
+let lastTime = performance.now();
+function GameLoop(currentTime) {
+  const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1); // 防止卡顿后跳帧
+  lastTime = currentTime;
+
+  if (GameState.isPlaying && !GameState.isGameOver) {
+    UpdatePhase();
+    UpdateTimer(deltaTime);
+    UpdatePlayer(deltaTime);
+    UpdateShadows(deltaTime);
+    UpdatePickup(deltaTime);
+    UpdateInvincibility(deltaTime);
+    CheckCollisions();
+    CheckPickupCollision();
+  }
+
+  requestAnimationFrame(GameLoop);
+}
+
+// ============ 调试面板 ============
+function setupDebugPanel() {
+  const fields = [
+    'playerSpeed', 'maxLives', 'invincibleDuration',
+    'playerHitRadius', 'shadowHitRadius', 'sanityPenalty',
+    'pickupSpeed'
+  ];
+  for (const f of fields) {
+    const input = document.getElementById(`cfg-${f}`);
+    const val = document.getElementById(`val-${f}`);
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value);
+      CONFIG[f] = v;
+      val.textContent = v;
+      // ★maxLives 调整时, 立即重建生命值HUD + 调整当前血量
+      if (f === 'maxLives') {
+        RebuildLivesHUD();
+      }
+    });
+  }
+  // checkbox: 斜向归一化
+  const cbNorm = document.getElementById('cfg-normalizeDiagonal');
+  cbNorm.addEventListener('change', () => {
+    CONFIG.normalizeDiagonal = cbNorm.checked;
+  });
+  // 血包开关
+  const cbPickup = document.getElementById('cfg-pickupEnabled');
+  if (cbPickup) {
+    cbPickup.addEventListener('change', () => {
+      CONFIG.pickupEnabled = cbPickup.checked;
+      if (!cbPickup.checked && GameState.pickup) {
+        GameState.pickup.el.remove();
+        GameState.pickup = null;
+      }
+    });
+  }
+}
+
+// ★重建生命值HUD — 用于maxLives实时调整
+function RebuildLivesHUD() {
+  $lives.innerHTML = '';
+  for (let i = 0; i < CONFIG.maxLives; i++) {
+    const span = document.createElement('span');
+    span.className = 'life';
+    span.textContent = '🩸';
+    $lives.appendChild(span);
+  }
+  // 当前血量不超过新上限
+  GameState.playerLives = Math.min(GameState.playerLives, CONFIG.maxLives);
+  // 如果当前血量被砍到比新上限低, 标记已失的
+  UpdateLivesUI();
+}
+
+// ============ 启动 ============
+initAssets();
+setupDebugPanel();
+$player.style.left = GameState.playerX + 'px';
+$player.style.top = GameState.playerY + 'px';
+GameState.isPlaying = true;
+GameState.shadowSpawnTimer = 1.0; // 第一个影子1秒后出现
+GameState.pickupSpawnTimer = CONFIG.pickupFirstDelay; // 第一个血包5秒后出现
+requestAnimationFrame(GameLoop);
+
+</script>
+
+</body>
+</html>

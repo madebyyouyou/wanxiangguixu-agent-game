@@ -1,0 +1,19 @@
+{
+  "name": "wanxiangguixu-agent-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A state-aware companion Agent inside a playable H5 narrative game.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "security:scan": "node scripts/scan-secrets.mjs",
+    "assets:check": "node scripts/check-assets.mjs",
+    "boundary:check": "node scripts/check-public-boundary.mjs",
+    "verify": "npm test && npm run security:scan && npm run assets:check && npm run boundary:check"
+  },
+  "dependencies": {
+    "openai": "^6.39.1"
+  }
+}
