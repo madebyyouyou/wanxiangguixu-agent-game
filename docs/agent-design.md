@@ -25,9 +25,9 @@
 
 这条限制的含义不是“玩家不能在文本里尝试注入”，而是玩家不能在 API 结构层伪装成更高优先级角色。普通文本中的 Prompt 注入仍是风险，因此还需要动作白名单与确定性校验兜底。
 
-## Structured output and state execution
+## Structured output as application-level tool calling
 
-模型可返回：
+模型的一次返回包含可见对话，也可以附带动作：
 
 ```text
 <state>平静</state>
@@ -35,9 +35,16 @@
 <action>{"type":"purchase","item_id":"ITEM_MATCH","qty":1}</action>
 ```
 
-解析器容忍缺失标签、全角标点和异常 JSON；异常动作会从可见正文中清理，但不会执行。
+其中正文进入对话 UI，`<action>` 进入解析与动作路由。这是游戏在应用层定义的受约束工具调用协议，不是供应商 API 原生的 Function Calling：模型仍返回文本，应用从中提取白名单指令，再将它们映射到已有游戏函数。
 
-“模型输出不直接改变状态”在本项目里的具体含义是：这套游戏协议本来就把模型结果当作请求。`AgentClient.applyAction()` 只接受已有的 `purchase` 类型，再调用 `GameState.purchase()` 核对商品、数量、积分和库存。`insight` 则由当前游戏场景检查动作类型、成功标记和关卡 key，匹配后才通过事件总线放行剧情。未知的 `set_points` 一类动作不会生效。
+当前开放两个工具：
+
+- `purchase`：`AgentClient.applyAction()` 接受购买请求，再调用 `GameState.purchase()` 核对商品、数量、积分和库存。
+- `insight`：当前游戏场景核对动作类型、成功标记和活动关卡 key，匹配后才通过事件总线放行剧情。
+
+所以模型可以提出“购买”或“推理通过”，却不能自行把积分改成 999，也不能跳过未满足的关卡。解析器会容忍缺失标签、全角标点和部分异常 JSON；无效动作会从可见正文中清理，但不会执行。未知动作、错误关卡、失败标记、无效数量或积分不足都保持原状态。
+
+工具执行后的背包、积分与剧情进度仍由 `GameState` 和剧情引擎持有。下一轮重新渲染上下文时，Agent 会看到这些确定性结果，由此形成“观察 → 请求工具 → 规则执行 → 状态反馈”的循环。
 
 ## Why a 12-message sliding window
 
@@ -59,6 +66,6 @@
 ## Known limits
 
 - 人格质量主要依赖 Prompt 和当前上下文，没有模型微调。
-- 结构化输出采用 tolerant parsing，不等价于供应商原生 JSON Schema 保证。
+- 工具调用采用应用层文本协议与 tolerant parsing，不等价于供应商原生 Function Calling 或 JSON Schema 保证。
 - 没有跨用户服务端记忆或对话数据库。
 - 没有任务拆解、多工具编排或多 Agent 协作。
